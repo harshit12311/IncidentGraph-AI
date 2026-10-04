@@ -3,6 +3,14 @@ from datetime import datetime
 
 import psutil
 import requests
+import sys
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
+from incident_detection.detector import detect_incident
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -138,3 +146,18 @@ if __name__ == "__main__":
     print("\nLog Analysis:")
     print(f"Errors    : {log_analysis['error_count']}")
     print(f"Warnings  : {log_analysis['warning_count']}")
+    incident = detect_incident(
+        metrics,
+        health,
+        log_analysis
+    )
+
+    print("\nIncident Detection:")
+    print(f"Detected  : {incident['incident_detected']}")
+    print(f"Incident  : {incident['incident_id']}")
+
+    if incident["incident_detected"]:
+        print("Reasons:")
+
+        for reason in incident["reasons"]:
+            print(f"- {reason}")
