@@ -4,3 +4,9 @@ __pycache__/
 .env
 *.db
 logs/*.log
+# SQLite database files
+database/*.db
+
+# Python cache files
+__pycache__/
+*.py[cod]

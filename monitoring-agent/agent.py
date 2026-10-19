@@ -15,6 +15,7 @@ if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
 from incident_detection.detector import detect_incident
+from database.storage import initialize_database, save_incident
 
 
 CONFIG_FILE = os.path.join(
@@ -121,7 +122,7 @@ def analyze_logs(log_lines):
 
 
 if __name__ == "__main__":
-
+    initialize_database()
     config = load_config()
 
     application = config["application"]
@@ -191,6 +192,14 @@ if __name__ == "__main__":
     print("\nIncident Detection:")
     print(f"Detected  : {incident['incident_detected']}")
     print(f"Incident  : {incident['incident_id']}")
+    if incident["incident_detected"]:
+        save_incident(
+            incident,
+            metrics,
+            health,
+            application_name
+        )
+        print("Incident saved to SQLite database.")
 
     if incident["incident_detected"]:
 
