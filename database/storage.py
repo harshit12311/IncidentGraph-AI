@@ -75,3 +75,29 @@ def get_recent_incidents(limit=20):
         """, (limit,)).fetchall()
 
         return [dict(row) for row in rows]
+
+def get_incident_summary():
+    """Return summary statistics for stored incidents."""
+    with get_connection() as connection:
+        total = connection.execute("""
+            SELECT COUNT(*) FROM incidents
+        """).fetchone()[0]
+
+        by_application = connection.execute("""
+            SELECT application_name, COUNT(*) AS incident_count
+            FROM incidents
+            GROUP BY application_name
+            ORDER BY incident_count DESC
+        """).fetchall()
+
+        by_health_status = connection.execute("""
+            SELECT health_status, COUNT(*) AS incident_count
+            FROM incidents
+            GROUP BY health_status
+        """).fetchall()
+
+        return {
+            "total_incidents": total,
+            "by_application": [dict(row) for row in by_application],
+            "by_health_status": [dict(row) for row in by_health_status],
+        }
