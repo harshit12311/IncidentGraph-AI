@@ -46,15 +46,19 @@ def collect_system_metrics():
 def find_process(process_name):
     """Check whether the configured application process is running."""
 
-    for process in psutil.process_iter(["pid", "name"]):
+    for process in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
-            name = process.info["name"]
+            name = process.info["name"] or ""
+            command = " ".join(process.info["cmdline"] or [])
 
-            if name and process_name.lower() in name.lower():
+            if (
+                process_name.lower() in name.lower()
+                or process_name.lower() in command.lower()
+            ):
                 return {
                     "running": True,
                     "pid": process.info["pid"],
-                    "name": name,
+                    "name": name or command,
                 }
 
         except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -68,7 +72,7 @@ def find_process(process_name):
 
 
 def check_application_health(url):
-    """Check whether the configured application health endpoint responds."""
+    """Check whether the configured health endpoint responds."""
 
     try:
         response = requests.get(url, timeout=5)
@@ -93,10 +97,15 @@ def read_recent_logs(log_file, number_of_lines=10):
     if not os.path.exists(log_file):
         return []
 
-    with open(log_file, "r", encoding="utf-8") as file:
-        lines = file.readlines()
+    try:
+        with open(log_file, "r", encoding="utf-8") as file:
+            lines = file.readlines()
 
-    return lines[-number_of_lines:]
+        return lines[-number_of_lines:]
+
+    except (OSError, UnicodeDecodeError) as error:
+        print(f"Could not read log file {log_file}: {error}")
+        return []
 
 
 def analyze_logs(log_lines):
@@ -106,7 +115,6 @@ def analyze_logs(log_lines):
     warnings = []
 
     for line in log_lines:
-
         if "ERROR" in line:
             errors.append(line.strip())
 
@@ -121,14 +129,11 @@ def analyze_logs(log_lines):
     }
 
 
-if __name__ == "__main__":
-    initialize_database()
-    config = load_config()
-
-    application = config["application"]
+def monitor_application(application, metrics):
+    """Monitor one application using shared server metrics."""
 
     application_name = application["name"]
-    base_url = application["base_url"]
+    base_url = application["base_url"].rstrip("/")
     health_endpoint = application["health_endpoint"]
     process_name = application["process_name"]
 
@@ -137,43 +142,34 @@ if __name__ == "__main__":
         application["log_file"]
     )
 
-    health_url = base_url + health_endpoint
+    health_url = f"{base_url}/{health_endpoint.lstrip('/')}"
 
-    print("IncidentGraph Monitoring Agent")
-    print("-" * 40)
-
+    print("\n" + "=" * 50)
     print(f"Application: {application_name}")
-
-    metrics = collect_system_metrics()
+    print("=" * 50)
 
     print(f"Timestamp : {metrics['timestamp']}")
     print(f"CPU Usage : {metrics['cpu_percent']}%")
     print(f"Memory    : {metrics['memory_percent']}%")
     print(f"Disk      : {metrics['disk_percent']}%")
 
-    print(f"\n{application_name} Process:")
-
     process = find_process(process_name)
 
+    print(f"\n{application_name} Process:")
     print(f"Running   : {process['running']}")
     print(f"PID       : {process['pid']}")
     print(f"Process   : {process['name']}")
 
-    print(f"\n{application_name} Health:")
-
     health = check_application_health(health_url)
 
+    print(f"\n{application_name} Health:")
     print(f"Reachable : {health['reachable']}")
     print(f"Status    : {health['status_code']}")
     print(f"Healthy   : {health['healthy']}")
 
+    recent_logs = read_recent_logs(log_file)
+
     print("\nRecent Application Logs:")
-
-    recent_logs = read_recent_logs(
-        log_file,
-        10
-    )
-
     for log in recent_logs:
         print(log.strip())
 
@@ -192,6 +188,7 @@ if __name__ == "__main__":
     print("\nIncident Detection:")
     print(f"Detected  : {incident['incident_detected']}")
     print(f"Incident  : {incident['incident_id']}")
+
     if incident["incident_detected"]:
         save_incident(
             incident,
@@ -199,11 +196,45 @@ if __name__ == "__main__":
             health,
             application_name
         )
+
         print("Incident saved to SQLite database.")
-
-    if incident["incident_detected"]:
-
         print("Reasons:")
 
         for reason in incident["reasons"]:
             print(f"- {reason}")
+
+
+def main():
+    """Initialize storage and monitor all configured applications."""
+
+    initialize_database()
+    config = load_config()
+
+    applications = config.get("applications", [])
+
+    if not applications:
+        raise ValueError(
+            "No applications configured in config/monitoring.json"
+        )
+
+    print("IncidentGraph Monitoring Agent")
+    print(f"Applications configured: {len(applications)}")
+
+    # These metrics describe the shared server, not individual apps.
+    metrics = collect_system_metrics()
+
+    for application in applications:
+        try:
+            monitor_application(application, metrics)
+
+        except (KeyError, TypeError, ValueError) as error:
+            name = application.get("name", "Unknown application")
+            print(f"\nConfiguration/data error for {name}: {error}")
+
+        except Exception as error:
+            name = application.get("name", "Unknown application")
+            print(f"\nMonitoring failed for {name}: {error}")
+
+
+if __name__ == "__main__":
+    main()

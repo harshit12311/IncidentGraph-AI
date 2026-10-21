@@ -1,9 +1,11 @@
 {
-    "application": {
-        "name": "DemoShop",
-        "base_url": "http://127.0.0.1:5000",
-        "health_endpoint": "/health",
-        "log_file": "logs/demoshop.log",
-        "process_name": "python"
-    }
+    "applications": [
+        {
+            "name": "DemoShop",
+            "base_url": "http://127.0.0.1:5000",
+            "health_endpoint": "/health",
+            "log_file": "logs/demoshop.log",
+            "process_name": "app.py"
+        }
+    ]
 }
