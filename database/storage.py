@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from pathlib import Path
 from datetime import datetime
 
@@ -8,14 +9,13 @@ DATABASE_FILE = BASE_DIR / "database" / "incidents.db"
 
 
 def get_connection():
-    """Create a connection to the SQLite database."""
-    connection = sqlite3.connect(DATABASE_FILE)
+    connection = sqlite3.connect(DATABASE_FILE, timeout=10)
     connection.row_factory = sqlite3.Row
     return connection
 
 
 def initialize_database():
-    """Create the incidents table if it does not exist."""
+    """Create tables and safely migrate existing incident records."""
     with get_connection() as connection:
         connection.execute("""
             CREATE TABLE IF NOT EXISTS incidents (
@@ -32,40 +32,161 @@ def initialize_database():
             )
         """)
 
+        columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(incidents)"
+            ).fetchall()
+        }
+
+        if "status" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN status TEXT NOT NULL DEFAULT 'resolved'
+            """)
+
+        if "resolved_at" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN resolved_at TEXT
+            """)
+
+        if "last_seen_at" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN last_seen_at TEXT
+            """)
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS log_cursors (
+                application_name TEXT PRIMARY KEY,
+                file_path TEXT NOT NULL,
+                file_inode INTEGER NOT NULL,
+                file_offset INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_incidents_status
+            ON incidents(status)
+        """)
+
 
 def save_incident(incident, metrics, health, application_name):
-    """Save one detected incident to the database."""
+    """Create an incident or update the existing open incident for an app."""
     if not incident.get("incident_detected"):
         return None
 
+    now = incident.get("timestamp") or datetime.now().isoformat()
     reasons = "; ".join(incident.get("reasons", []))
+    health_status = "healthy" if health.get("healthy") else "unhealthy"
 
     with get_connection() as connection:
-        cursor = connection.execute("""
+        existing = connection.execute("""
+            SELECT id, incident_id
+            FROM incidents
+            WHERE application_name = ? AND status = 'open'
+            ORDER BY id DESC
+            LIMIT 1
+        """, (application_name,)).fetchone()
+
+        if existing:
+            connection.execute("""
+                UPDATE incidents
+                SET last_seen_at = ?,
+                    reasons = ?,
+                    cpu_percent = ?,
+                    memory_percent = ?,
+                    disk_percent = ?,
+                    health_status = ?
+                WHERE id = ?
+            """, (
+                now,
+                reasons,
+                metrics.get("cpu_percent"),
+                metrics.get("memory_percent"),
+                metrics.get("disk_percent"),
+                health_status,
+                existing["id"],
+            ))
+            return existing["incident_id"]
+
+        incident_id = (
+            f"INC-{datetime.now().strftime('%Y%m%d%H%M%S')}-"
+            f"{uuid.uuid4().hex[:8]}"
+        )
+
+        connection.execute("""
             INSERT INTO incidents (
                 incident_id, timestamp, application_name, detected,
                 reasons, cpu_percent, memory_percent, disk_percent,
-                health_status
+                health_status, status, last_seen_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(incident_id) DO NOTHING
+            VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'open', ?)
         """, (
-            incident["incident_id"],
-            incident.get("timestamp", datetime.now().isoformat()),
+            incident_id,
+            now,
             application_name,
-            1,
             reasons,
             metrics.get("cpu_percent"),
             metrics.get("memory_percent"),
             metrics.get("disk_percent"),
-            "healthy" if health.get("healthy") else "unhealthy",
+            health_status,
+            now,
         ))
 
-        return cursor.lastrowid
+        return incident_id
+
+
+def resolve_application_incidents(application_name):
+    """Resolve all open incidents for an application after recovery."""
+    now = datetime.now().isoformat()
+
+    with get_connection() as connection:
+        cursor = connection.execute("""
+            UPDATE incidents
+            SET status = 'resolved', resolved_at = ?
+            WHERE application_name = ? AND status = 'open'
+        """, (now, application_name))
+
+        return cursor.rowcount
+
+
+def get_log_cursor(application_name):
+    with get_connection() as connection:
+        row = connection.execute("""
+            SELECT file_path, file_inode, file_offset
+            FROM log_cursors
+            WHERE application_name = ?
+        """, (application_name,)).fetchone()
+
+        return dict(row) if row else None
+
+
+def update_log_cursor(application_name, file_path, file_inode, file_offset):
+    with get_connection() as connection:
+        connection.execute("""
+            INSERT INTO log_cursors (
+                application_name, file_path, file_inode,
+                file_offset, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(application_name) DO UPDATE SET
+                file_path = excluded.file_path,
+                file_inode = excluded.file_inode,
+                file_offset = excluded.file_offset,
+                updated_at = excluded.updated_at
+        """, (
+            application_name,
+            str(file_path),
+            file_inode,
+            file_offset,
+            datetime.now().isoformat(),
+        ))
 
 
 def get_recent_incidents(limit=20):
-    """Return the most recent incidents."""
     with get_connection() as connection:
         rows = connection.execute("""
             SELECT *
@@ -76,8 +197,8 @@ def get_recent_incidents(limit=20):
 
         return [dict(row) for row in rows]
 
+
 def get_incident_summary():
-    """Return summary statistics for stored incidents."""
     with get_connection() as connection:
         total = connection.execute("""
             SELECT COUNT(*) FROM incidents
@@ -96,8 +217,15 @@ def get_incident_summary():
             GROUP BY health_status
         """).fetchall()
 
+        by_status = connection.execute("""
+            SELECT status, COUNT(*) AS incident_count
+            FROM incidents
+            GROUP BY status
+        """).fetchall()
+
         return {
             "total_incidents": total,
             "by_application": [dict(row) for row in by_application],
             "by_health_status": [dict(row) for row in by_health_status],
+            "by_status": [dict(row) for row in by_status],
         }

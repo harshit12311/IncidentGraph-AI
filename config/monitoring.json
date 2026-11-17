@@ -7,5 +7,6 @@
             "log_file": "logs/demoshop.log",
             "process_name": "app.py"
         }
-    ]
+    ],
+    "poll_interval_seconds": 15
 }

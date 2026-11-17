@@ -1,40 +1,43 @@
+import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime
+from pathlib import Path
 
 import psutil
 import requests
 
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))
-)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from incident_detection.detector import detect_incident
-from database.storage import initialize_database, save_incident
-
-
-CONFIG_FILE = os.path.join(
-    BASE_DIR,
-    "config",
-    "monitoring.json"
+from database.storage import (
+    initialize_database,
+    save_incident,
+    resolve_application_incidents,
+    get_log_cursor,
+    update_log_cursor,
 )
+
+CONFIG_FILE = BASE_DIR / "config" / "monitoring.json"
 
 
 def load_config():
-    """Load application monitoring configuration."""
-
     with open(CONFIG_FILE, "r", encoding="utf-8") as file:
-        return json.load(file)
+        config = json.load(file)
+
+    if not isinstance(config.get("applications"), list):
+        raise ValueError("'applications' must be a list in monitoring.json")
+
+    return config
 
 
 def collect_system_metrics():
-    """Collect CPU, memory and disk usage."""
-
     return {
         "timestamp": datetime.now().isoformat(),
         "cpu_percent": psutil.cpu_percent(interval=1),
@@ -44,8 +47,7 @@ def collect_system_metrics():
 
 
 def find_process(process_name):
-    """Check whether the configured application process is running."""
-
+    """Find a process by configured name or command-line text."""
     for process in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             name = process.info["name"] or ""
@@ -61,7 +63,11 @@ def find_process(process_name):
                     "name": name or command,
                 }
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except (
+            psutil.NoSuchProcess,
+            psutil.AccessDenied,
+            psutil.ZombieProcess,
+        ):
             continue
 
     return {
@@ -72,8 +78,6 @@ def find_process(process_name):
 
 
 def check_application_health(url):
-    """Check whether the configured health endpoint responds."""
-
     try:
         response = requests.get(url, timeout=5)
 
@@ -91,34 +95,65 @@ def check_application_health(url):
         }
 
 
-def read_recent_logs(log_file, number_of_lines=10):
-    """Read the most recent application log entries."""
+def read_new_logs(application_name, log_file):
+    """
+    Read only log entries appended since the previous check.
 
-    if not os.path.exists(log_file):
+    On the first run, existing log content is skipped. File rotation
+    and truncation are detected using inode and file size.
+    """
+    log_path = Path(log_file)
+
+    if not log_path.exists():
         return []
 
     try:
-        with open(log_file, "r", encoding="utf-8") as file:
-            lines = file.readlines()
+        with log_path.open("rb") as file:
+            stat = os.fstat(file.fileno())
+            current_inode = stat.st_ino
+            current_size = stat.st_size
+            cursor = get_log_cursor(application_name)
 
-        return lines[-number_of_lines:]
+            if cursor is None:
+                # Establish a starting point without replaying old logs.
+                offset = current_size
+            elif (
+                cursor["file_path"] != str(log_path.resolve())
+                or cursor["file_inode"] != current_inode
+                or current_size < cursor["file_offset"]
+            ):
+                # New file, rotated file, or truncated file.
+                offset = 0
+            else:
+                offset = cursor["file_offset"]
 
-    except (OSError, UnicodeDecodeError) as error:
-        print(f"Could not read log file {log_file}: {error}")
+            file.seek(offset)
+            content = file.read()
+            new_offset = file.tell()
+
+            update_log_cursor(
+                application_name,
+                str(log_path.resolve()),
+                current_inode,
+                new_offset,
+            )
+
+        return content.decode("utf-8", errors="replace").splitlines()
+
+    except OSError as error:
+        print(f"Could not read log file {log_path}: {error}")
         return []
 
 
 def analyze_logs(log_lines):
-    """Look for ERROR and WARNING events in recent logs."""
-
+    """Count only entries explicitly marked with ERROR or WARNING."""
     errors = []
     warnings = []
 
     for line in log_lines:
-        if "ERROR" in line:
+        if " - ERROR - " in line:
             errors.append(line.strip())
-
-        if "WARNING" in line:
+        elif " - WARNING - " in line:
             warnings.append(line.strip())
 
     return {
@@ -130,97 +165,72 @@ def analyze_logs(log_lines):
 
 
 def monitor_application(application, metrics):
-    """Monitor one application using shared server metrics."""
-
     application_name = application["name"]
     base_url = application["base_url"].rstrip("/")
-    health_endpoint = application["health_endpoint"]
+    health_endpoint = application.get("health_endpoint", "/health")
     process_name = application["process_name"]
 
-    log_file = os.path.join(
-        BASE_DIR,
-        application["log_file"]
-    )
-
+    log_file = BASE_DIR / application["log_file"]
     health_url = f"{base_url}/{health_endpoint.lstrip('/')}"
 
-    print("\n" + "=" * 50)
-    print(f"Application: {application_name}")
-    print("=" * 50)
-
-    print(f"Timestamp : {metrics['timestamp']}")
-    print(f"CPU Usage : {metrics['cpu_percent']}%")
-    print(f"Memory    : {metrics['memory_percent']}%")
-    print(f"Disk      : {metrics['disk_percent']}%")
-
     process = find_process(process_name)
-
-    print(f"\n{application_name} Process:")
-    print(f"Running   : {process['running']}")
-    print(f"PID       : {process['pid']}")
-    print(f"Process   : {process['name']}")
-
     health = check_application_health(health_url)
 
-    print(f"\n{application_name} Health:")
-    print(f"Reachable : {health['reachable']}")
-    print(f"Status    : {health['status_code']}")
-    print(f"Healthy   : {health['healthy']}")
+    # Both the process and HTTP health endpoint must be healthy.
+    effective_health = {
+        **health,
+        "healthy": health["healthy"] and process["running"],
+    }
 
-    recent_logs = read_recent_logs(log_file)
-
-    print("\nRecent Application Logs:")
-    for log in recent_logs:
-        print(log.strip())
-
-    log_analysis = analyze_logs(recent_logs)
-
-    print("\nLog Analysis:")
-    print(f"Errors    : {log_analysis['error_count']}")
-    print(f"Warnings  : {log_analysis['warning_count']}")
+    new_logs = read_new_logs(application_name, log_file)
+    log_analysis = analyze_logs(new_logs)
 
     incident = detect_incident(
         metrics,
-        health,
-        log_analysis
+        effective_health,
+        log_analysis,
     )
 
-    print("\nIncident Detection:")
-    print(f"Detected  : {incident['incident_detected']}")
-    print(f"Incident  : {incident['incident_id']}")
+    print("\n" + "=" * 55)
+    print(f"Application : {application_name}")
+    print("=" * 55)
+    print(f"Timestamp   : {metrics['timestamp']}")
+    print(f"CPU         : {metrics['cpu_percent']}%")
+    print(f"Memory      : {metrics['memory_percent']}%")
+    print(f"Disk        : {metrics['disk_percent']}%")
+    print(f"Process     : {'Running' if process['running'] else 'Stopped'}")
+    print(f"PID         : {process['pid']}")
+    print(f"HTTP status : {health['status_code']}")
+    print(f"Healthy     : {effective_health['healthy']}")
+    print(f"New log lines: {len(new_logs)}")
+    print(f"New errors  : {log_analysis['error_count']}")
+    print(f"New warnings: {log_analysis['warning_count']}")
 
     if incident["incident_detected"]:
-        save_incident(
+        incident_id = save_incident(
             incident,
             metrics,
-            health,
-            application_name
+            effective_health,
+            application_name,
         )
 
-        print("Incident saved to SQLite database.")
-        print("Reasons:")
+        print("\nIncident detected.")
+        print(f"Incident ID : {incident_id}")
 
-        for reason in incident["reasons"]:
+        for reason in incident.get("reasons", []):
             print(f"- {reason}")
 
+    else:
+        resolved_count = resolve_application_incidents(application_name)
 
-def main():
-    """Initialize storage and monitor all configured applications."""
+        if resolved_count:
+            print(f"\nRecovery detected. Resolved {resolved_count} incident(s).")
+        else:
+            print("\nNo active incident detected.")
 
-    initialize_database()
-    config = load_config()
 
-    applications = config.get("applications", [])
-
-    if not applications:
-        raise ValueError(
-            "No applications configured in config/monitoring.json"
-        )
-
-    print("IncidentGraph Monitoring Agent")
-    print(f"Applications configured: {len(applications)}")
-
-    # These metrics describe the shared server, not individual apps.
+def run_cycle(applications):
+    """Run one monitoring cycle across all configured applications."""
     metrics = collect_system_metrics()
 
     for application in applications:
@@ -234,6 +244,52 @@ def main():
         except Exception as error:
             name = application.get("name", "Unknown application")
             print(f"\nMonitoring failed for {name}: {error}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="IncidentGraph AI monitoring agent")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run one monitoring cycle and exit",
+    )
+    args = parser.parse_args()
+
+    initialize_database()
+    config = load_config()
+    applications = config["applications"]
+
+    if not applications:
+        raise ValueError("No applications configured in monitoring.json")
+
+    interval = config.get("poll_interval_seconds", 15)
+
+    if not isinstance(interval, (int, float)) or interval < 5:
+        raise ValueError("poll_interval_seconds must be at least 5")
+
+    print("IncidentGraph AI Monitoring Agent")
+    print(f"Applications configured: {len(applications)}")
+    print(f"Polling interval: {interval} seconds")
+
+    if args.once:
+        run_cycle(applications)
+        return
+
+    print("Continuous monitoring started. Press CTRL+C to stop.")
+
+    try:
+        while True:
+            cycle_started = time.monotonic()
+            run_cycle(applications)
+
+            elapsed = time.monotonic() - cycle_started
+            sleep_time = max(0, interval - elapsed)
+
+            print(f"\nNext monitoring cycle in {sleep_time:.1f} seconds.")
+            time.sleep(sleep_time)
+
+    except KeyboardInterrupt:
+        print("\nMonitoring stopped by user.")
 
 
 if __name__ == "__main__":
