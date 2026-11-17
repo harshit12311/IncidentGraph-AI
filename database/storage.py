@@ -2,7 +2,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 from datetime import datetime
-
+import json
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_FILE = BASE_DIR / "database" / "incidents.db"
@@ -56,6 +56,23 @@ def initialize_database():
                 ALTER TABLE incidents
                 ADD COLUMN last_seen_at TEXT
             """)
+        if "predicted_root_cause" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN predicted_root_cause TEXT
+            """)
+
+        if "confidence_percent" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN confidence_percent REAL
+            """)
+
+        if "root_cause_probabilities" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN root_cause_probabilities TEXT
+            """)
 
         connection.execute("""
             CREATE TABLE IF NOT EXISTS log_cursors (
@@ -86,14 +103,30 @@ def initialize_database():
         """)
 
 
-def save_incident(incident, metrics, health, application_name):
-    """Create an incident or update the existing open incident for an app."""
+
+def save_incident(
+    incident,
+    metrics,
+    health,
+    application_name,
+    prediction=None,
+):
+    """Create or update an incident with its ML root-cause prediction."""
     if not incident.get("incident_detected"):
         return None
 
     now = incident.get("timestamp") or datetime.now().isoformat()
     reasons = "; ".join(incident.get("reasons", []))
     health_status = "healthy" if health.get("healthy") else "unhealthy"
+
+    prediction = prediction or {}
+    predicted_root_cause = prediction.get("predicted_root_cause")
+    confidence_percent = prediction.get("confidence_percent")
+    probabilities = prediction.get("probabilities")
+
+    probabilities_json = (
+        json.dumps(probabilities) if probabilities is not None else None
+    )
 
     with get_connection() as connection:
         existing = connection.execute("""
@@ -112,7 +145,10 @@ def save_incident(incident, metrics, health, application_name):
                     cpu_percent = ?,
                     memory_percent = ?,
                     disk_percent = ?,
-                    health_status = ?
+                    health_status = ?,
+                    predicted_root_cause = ?,
+                    confidence_percent = ?,
+                    root_cause_probabilities = ?
                 WHERE id = ?
             """, (
                 now,
@@ -121,6 +157,9 @@ def save_incident(incident, metrics, health, application_name):
                 metrics.get("memory_percent"),
                 metrics.get("disk_percent"),
                 health_status,
+                predicted_root_cause,
+                confidence_percent,
+                probabilities_json,
                 existing["id"],
             ))
             return existing["incident_id"]
@@ -134,9 +173,11 @@ def save_incident(incident, metrics, health, application_name):
             INSERT INTO incidents (
                 incident_id, timestamp, application_name, detected,
                 reasons, cpu_percent, memory_percent, disk_percent,
-                health_status, status, last_seen_at
+                health_status, status, last_seen_at,
+                predicted_root_cause, confidence_percent,
+                root_cause_probabilities
             )
-            VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'open', ?)
+            VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
         """, (
             incident_id,
             now,
@@ -147,10 +188,12 @@ def save_incident(incident, metrics, health, application_name):
             metrics.get("disk_percent"),
             health_status,
             now,
+            predicted_root_cause,
+            confidence_percent,
+            probabilities_json,
         ))
 
         return incident_id
-
 
 def resolve_application_incidents(application_name):
     """Resolve all open incidents for an application after recovery."""

@@ -24,6 +24,12 @@ from database.storage import (
     update_log_cursor,
     record_website_check,
 )
+ML_DIR = BASE_DIR / "ml-model"
+
+if str(ML_DIR) not in sys.path:
+    sys.path.insert(0, str(ML_DIR))
+
+from predictor import predict_root_cause
 
 CONFIG_FILE = BASE_DIR / "config" / "monitoring.json"
 
@@ -259,15 +265,24 @@ def monitor_application(application, metrics):
     print(f"New warnings: {log_analysis['warning_count']}")
 
     if incident["incident_detected"]:
+        prediction = predict_root_cause(
+            metrics,
+            effective_health,
+            log_analysis,
+        )
+
         incident_id = save_incident(
             incident,
             metrics,
             effective_health,
             application_name,
+            prediction,
         )
 
         print("\nIncident detected.")
         print(f"Incident ID : {incident_id}")
+        print(f"Likely cause: {prediction['predicted_root_cause']}")
+        print(f"Confidence  : {prediction['confidence_percent']}%")
 
         for reason in incident.get("reasons", []):
             print(f"- {reason}")
