@@ -68,6 +68,19 @@ def initialize_database():
         """)
 
         connection.execute("""
+            CREATE TABLE IF NOT EXISTS website_checks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                website_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                checked_at TEXT NOT NULL,
+                status_code INTEGER,
+                response_time_ms REAL,
+                available INTEGER NOT NULL,
+                error_message TEXT
+            )
+        """)
+
+        connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_incidents_status
             ON incidents(status)
         """)
@@ -184,6 +197,67 @@ def update_log_cursor(application_name, file_path, file_inode, file_offset):
             file_offset,
             datetime.now().isoformat(),
         ))
+
+
+
+def record_website_check(
+    website_name, url, status_code, response_time_ms,
+    available, error_message=None
+):
+    """Persist one external website availability check."""
+    with get_connection() as connection:
+        connection.execute("""
+            INSERT INTO website_checks (
+                website_name, url, checked_at, status_code,
+                response_time_ms, available, error_message
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            website_name,
+            url,
+            datetime.now().isoformat(),
+            status_code,
+            response_time_ms,
+            1 if available else 0,
+            error_message,
+        ))
+
+
+def get_recent_website_checks(limit=50):
+    with get_connection() as connection:
+        rows = connection.execute("""
+            SELECT *
+            FROM website_checks
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_website_check_summary():
+    with get_connection() as connection:
+        row = connection.execute("""
+            SELECT
+                COUNT(*) AS total_checks,
+                COALESCE(SUM(available), 0) AS successful_checks,
+                COALESCE(AVG(response_time_ms), 0) AS average_response_time_ms
+            FROM website_checks
+        """).fetchone()
+
+        total = row["total_checks"]
+        successful = row["successful_checks"]
+
+        return {
+            "total_checks": total,
+            "successful_checks": successful,
+            "failed_checks": total - successful,
+            "availability_percent": (
+                round(successful * 100 / total, 2) if total else None
+            ),
+            "average_response_time_ms": round(
+                row["average_response_time_ms"], 2
+            ),
+        }
 
 
 def get_recent_incidents(limit=20):

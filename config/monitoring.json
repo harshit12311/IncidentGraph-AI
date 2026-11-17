@@ -8,5 +8,13 @@
             "process_name": "app.py"
         }
     ],
-    "poll_interval_seconds": 15
+    "poll_interval_seconds": 15,
+    "external_websites": [
+        {
+            "name": "httpbin",
+            "url": "https://httpbin.org/status/200",
+            "expected_status_code": 200,
+            "timeout_seconds": 10
+        }
+    ]
 }

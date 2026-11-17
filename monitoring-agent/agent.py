@@ -22,6 +22,7 @@ from database.storage import (
     resolve_application_incidents,
     get_log_cursor,
     update_log_cursor,
+    record_website_check,
 )
 
 CONFIG_FILE = BASE_DIR / "config" / "monitoring.json"
@@ -164,6 +165,57 @@ def analyze_logs(log_lines):
     }
 
 
+def monitor_external_website(website):
+    """Check an external website and store its availability history."""
+    name = website["name"]
+    url = website["url"]
+    expected_status = website.get("expected_status_code", 200)
+    timeout = website.get("timeout_seconds", 10)
+
+    start_time = time.perf_counter()
+    status_code = None
+    error_message = None
+    available = False
+
+    try:
+        response = requests.get(url, timeout=timeout)
+        status_code = response.status_code
+        available = status_code == expected_status
+
+        if not available:
+            error_message = (
+                f"Unexpected HTTP status: {status_code}; "
+                f"expected {expected_status}"
+            )
+
+    except requests.RequestException as error:
+        error_message = f"{type(error).__name__}: {error}"
+
+    response_time_ms = round(
+        (time.perf_counter() - start_time) * 1000,
+        2,
+    )
+
+    record_website_check(
+        website_name=name,
+        url=url,
+        status_code=status_code,
+        response_time_ms=response_time_ms,
+        available=available,
+        error_message=error_message,
+    )
+
+    print("\n" + "=" * 55)
+    print(f"External website: {name}")
+    print("=" * 55)
+    print(f"URL          : {url}")
+    print(f"HTTP status  : {status_code}")
+    print(f"Response time: {response_time_ms} ms")
+    print(f"Available    : {available}")
+
+    if error_message:
+        print(f"Details      : {error_message}")
+
 def monitor_application(application, metrics):
     application_name = application["name"]
     base_url = application["base_url"].rstrip("/")
@@ -229,8 +281,8 @@ def monitor_application(application, metrics):
             print("\nNo active incident detected.")
 
 
-def run_cycle(applications):
-    """Run one monitoring cycle across all configured applications."""
+def run_cycle(applications, external_websites=None):
+    """Run one cycle across applications and external websites."""
     metrics = collect_system_metrics()
 
     for application in applications:
@@ -245,6 +297,18 @@ def run_cycle(applications):
             name = application.get("name", "Unknown application")
             print(f"\nMonitoring failed for {name}: {error}")
 
+    for website in external_websites or []:
+        try:
+            monitor_external_website(website)
+
+        except (KeyError, TypeError, ValueError) as error:
+            name = website.get("name", "Unknown website")
+            print(f"\nWebsite configuration error for {name}: {error}")
+
+        except Exception as error:
+            name = website.get("name", "Unknown website")
+            print(f"\nWebsite monitoring failed for {name}: {error}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="IncidentGraph AI monitoring agent")
@@ -258,6 +322,7 @@ def main():
     initialize_database()
     config = load_config()
     applications = config["applications"]
+    external_websites = config.get("external_websites", [])
 
     if not applications:
         raise ValueError("No applications configured in monitoring.json")
@@ -272,7 +337,7 @@ def main():
     print(f"Polling interval: {interval} seconds")
 
     if args.once:
-        run_cycle(applications)
+        run_cycle(applications, external_websites)
         return
 
     print("Continuous monitoring started. Press CTRL+C to stop.")
@@ -280,7 +345,7 @@ def main():
     try:
         while True:
             cycle_started = time.monotonic()
-            run_cycle(applications)
+            run_cycle(applications, external_websites)
 
             elapsed = time.monotonic() - cycle_started
             sleep_time = max(0, interval - elapsed)

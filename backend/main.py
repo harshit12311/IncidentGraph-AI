@@ -4,6 +4,8 @@ from database.storage import (
     initialize_database,
     get_recent_incidents,
     get_incident_summary,
+    get_recent_website_checks,
+    get_website_check_summary,
 )
 
 app = FastAPI(
@@ -44,3 +46,14 @@ def list_incidents(limit: int = Query(default=20, ge=1, le=100)):
 @app.get("/incidents/summary")
 def incident_summary():
     return get_incident_summary()
+
+
+@app.get("/website-checks")
+def list_website_checks(limit: int = Query(default=50, ge=1, le=500)):
+    checks = get_recent_website_checks(limit=limit)
+    return {"count": len(checks), "checks": checks}
+
+
+@app.get("/website-checks/summary")
+def website_check_summary():
+    return get_website_check_summary()
