@@ -97,3 +97,21 @@ def predict_incident_root_cause(request: PredictionRequest):
     }
 
     return predict_root_cause(metrics, health, log_analysis)
+
+
+# Serve the IncidentGraph AI dashboard and its static assets.
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+app.mount(
+    "/frontend",
+    StaticFiles(directory=str(FRONTEND_DIR)),
+    name="frontend",
+)
+
+
+@app.get("/dashboard")
+def dashboard():
+    return FileResponse(FRONTEND_DIR / "index.html")

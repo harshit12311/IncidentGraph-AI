@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentGraph AI | Incident Monitoring</title>
+    <link rel="stylesheet" href="/frontend/assets/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">IG</div>
+                <div>
+                    <h2>IncidentGraph AI</h2>
+                    <span>Monitoring Platform</span>
+                </div>
+            </div>
+
+            <nav>
+                <a class="nav-link active" href="#overview">▦ &nbsp; Overview</a>
+                <a class="nav-link" href="#incidents">◉ &nbsp; Incidents</a>
+                <a class="nav-link" href="#websites">◎ &nbsp; Website Monitoring</a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <span class="status-dot"></span>
+                <span>Monitoring platform</span>
+            </div>
+        </aside>
+
+        <main class="main-content" id="overview">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">INCIDENT MANAGEMENT</p>
+                    <h1>System Overview</h1>
+                    <p class="subtitle">Monitor application health and investigate incidents.</p>
+                </div>
+                <div class="topbar-right">
+                    <span class="live-indicator">● Live Dashboard</span>
+                    <button id="refreshButton">↻ Refresh</button>
+                </div>
+            </header>
+
+            <section class="section-heading">
+                <h2>Incident Summary</h2>
+                <span id="lastUpdated">Waiting for data...</span>
+            </section>
+
+            <section class="stats-grid">
+                <article class="stat-card">
+                    <span class="stat-label">Total Incidents</span>
+                    <strong id="totalIncidents">—</strong>
+                    <span class="stat-note">Recorded incidents</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Open Incidents</span>
+                    <strong id="openIncidents">—</strong>
+                    <span class="stat-note">Require attention</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Resolved Incidents</span>
+                    <strong id="resolvedIncidents">—</strong>
+                    <span class="stat-note">Successfully resolved</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Website Availability</span>
+                    <strong id="websiteAvailability">—</strong>
+                    <span class="stat-note">Based on recorded checks</span>
+                </article>
+            </section>
+
+            <section class="charts-grid">
+                <article class="panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Incidents by Application</h3>
+                            <p>Incident distribution across monitored applications</p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="applicationChart"></canvas>
+                    </div>
+                </article>
+
+                <article class="panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Incident Status</h3>
+                            <p>Current incident lifecycle summary</p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </article>
+            </section>
+
+            <section class="panel table-panel" id="incidents">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Recent Incidents</h3>
+                        <p>Latest detected application incidents and ML predictions</p>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Incident ID</th>
+                                <th>Application</th>
+                                <th>Health</th>
+                                <th>Predicted Root Cause</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidentTable">
+                            <tr><td colspan="6" class="empty-state">Loading incidents...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel table-panel" id="websites">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Website Monitoring</h3>
+                        <p>External website availability and response checks</p>
+                    </div>
+                </div>
+                <div class="website-summary">
+                    <div><span>Total Checks</span><strong id="totalChecks">—</strong></div>
+                    <div><span>Successful</span><strong id="successfulChecks">—</strong></div>
+                    <div><span>Failed</span><strong id="failedChecks">—</strong></div>
+                    <div><span>Average Response</span><strong id="averageResponse">—</strong></div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Website</th>
+                                <th>URL</th>
+                                <th>HTTP Status</th>
+                                <th>Response Time</th>
+                                <th>Availability</th>
+                                <th>Checked At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="websiteTable">
+                            <tr><td colspan="6" class="empty-state">Loading website checks...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <footer>IncidentGraph AI · Intelligent Incident Monitoring and Root Cause Analysis</footer>
+        </main>
+    </div>
+
+    <script src="/frontend/assets/dashboard.js"></script>
+</body>
+</html>
