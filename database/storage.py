@@ -346,3 +346,28 @@ def get_incident_summary():
             "by_health_status": [dict(row) for row in by_health_status],
             "by_status": [dict(row) for row in by_status],
         }
+
+
+def get_incident_by_id(incident_id):
+    with get_connection() as connection:
+        row = connection.execute("""
+            SELECT *
+            FROM incidents
+            WHERE incident_id = ?
+        """, (incident_id,)).fetchone()
+
+        if row is None:
+            return None
+
+        incident = dict(row)
+
+        if incident.get("root_cause_probabilities"):
+            import json
+            try:
+                incident["root_cause_probabilities"] = json.loads(
+                    incident["root_cause_probabilities"]
+                )
+            except (json.JSONDecodeError, TypeError):
+                incident["root_cause_probabilities"] = {}
+
+        return incident

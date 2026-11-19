@@ -3,6 +3,7 @@ from fastapi import FastAPI, Query
 from database.storage import (
     initialize_database,
     get_recent_incidents,
+    get_incident_by_id,
     get_incident_summary,
     get_recent_website_checks,
     get_website_check_summary,
@@ -69,7 +70,7 @@ ML_DIR = Path(__file__).resolve().parent.parent / "ml-model"
 if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
-from predictor import predict_root_cause
+from predictor import predict_root_cause, get_root_cause_recommendations
 
 
 class PredictionRequest(BaseModel):
@@ -115,3 +116,18 @@ app.mount(
 @app.get("/dashboard")
 def dashboard():
     return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/incidents/{incident_id}")
+def incident_details(incident_id: str):
+    incident = get_incident_by_id(incident_id)
+
+    if incident is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    incident["recommendations"] = get_root_cause_recommendations(
+        incident.get("predicted_root_cause")
+    )
+
+    return incident

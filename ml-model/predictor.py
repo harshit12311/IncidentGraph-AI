@@ -44,3 +44,43 @@ def predict_root_cause(metrics, health, log_analysis):
             "not a confirmed causal diagnosis."
         ),
     }
+
+
+def get_root_cause_recommendations(root_cause):
+    recommendations = {
+        "high_cpu": [
+            "Inspect CPU-intensive processes.",
+            "Check for traffic spikes or excessive workloads.",
+            "Review application performance and optimize expensive operations."
+        ],
+        "high_memory": [
+            "Inspect memory-consuming processes.",
+            "Check for memory leaks.",
+            "Review application memory usage and restart affected services if necessary."
+        ],
+        "high_disk": [
+            "Check available disk space.",
+            "Inspect large log files and temporary files.",
+            "Review disk usage growth and configure log rotation."
+        ],
+        "health_failure": [
+            "Inspect the application health endpoint.",
+            "Check application and service logs.",
+            "Verify dependencies and restart the service if appropriate."
+        ],
+        "application_error": [
+            "Inspect recent application error logs.",
+            "Identify the failing request or application component.",
+            "Review recent code changes and dependency failures."
+        ],
+        "multiple_causes": [
+            "Investigate CPU, memory and disk utilization together.",
+            "Review application health and error logs.",
+            "Prioritize the most severe resource or application symptoms."
+        ]
+    }
+
+    return recommendations.get(
+        root_cause,
+        ["Review application logs and system metrics for further investigation."]
+    )

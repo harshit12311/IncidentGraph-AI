@@ -73,7 +73,7 @@ function renderIncidents(incidents) {
 
         return `
             <tr>
-                <td>${escapeHTML(incident.incident_id || "—")}</td>
+                <td><button class="incident-link" onclick="viewIncident(&quot;${escapeHTML(incident.incident_id || "")}&quot;)">${escapeHTML(incident.incident_id || "—")}</button></td>
                 <td>${escapeHTML(incident.application_name || "—")}</td>
                 <td><span class="pill ${healthClass(health)}">${escapeHTML(health)}</span></td>
                 <td>${escapeHTML(cause)}</td>
@@ -188,3 +188,131 @@ document.getElementById("refreshButton").addEventListener("click", loadDashboard
 
 loadDashboard();
 setInterval(loadDashboard, 15000);
+
+
+let probabilityChart;
+
+async function viewIncident(incidentId) {
+    const section = document.getElementById("incidentDetails");
+    section.hidden = false;
+    section.scrollIntoView({ behavior: "smooth" });
+
+    setText("detailIncidentId", "Loading " + incidentId + "...");
+
+    try {
+        const incident = await fetchJSON(
+            "/incidents/" + encodeURIComponent(incidentId)
+        );
+
+        setText("detailIncidentId", incident.incident_id);
+        setText("detailCause", incident.predicted_root_cause || "Not available");
+        setText(
+            "detailConfidence",
+            incident.confidence_percent == null
+                ? "—"
+                : Number(incident.confidence_percent).toFixed(1) + "%"
+        );
+        setText("detailCPU", Number(incident.cpu_percent || 0).toFixed(1) + "%");
+        setText("detailMemory", Number(incident.memory_percent || 0).toFixed(1) + "%");
+
+        setText("detailReason", "Detection reason: " + (incident.reasons || "Not recorded"));
+        setText("detailHealth", "Health status: " + (incident.health_status || "Unknown"));
+        setText("detailDisk", "Disk usage: " + Number(incident.disk_percent || 0).toFixed(1) + "%");
+        setText("detailTimestamp", "Detected at: " + formatDate(incident.timestamp));
+        renderIncidentTimeline(incident);
+
+    const recommendations = incident.recommendations || [];
+    document.getElementById("incidentRecommendations").innerHTML =
+        recommendations.length
+            ? recommendations.map(item => `<li>${escapeHTML(item)}</li>`).join("")
+            : "<li>No recommendations available.</li>";
+
+        const probabilities = incident.root_cause_probabilities || {};
+        const labels = Object.keys(probabilities);
+        const values = Object.values(probabilities);
+
+        if (probabilityChart) probabilityChart.destroy();
+
+        probabilityChart = new Chart(
+            document.getElementById("probabilityChart"),
+            {
+                type: "bar",
+                data: {
+                    labels,
+                    datasets: [{
+                        label: "Probability (%)",
+                        data: values,
+                        backgroundColor: "#647bff",
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { callback: value => value + "%" }
+                        }
+                    }
+                }
+            }
+        );
+    } catch (error) {
+        console.error("Incident details loading failed:", error);
+        setText("detailIncidentId", "Unable to load incident details.");
+    }
+}
+
+function closeIncidentDetails() {
+    document.getElementById("incidentDetails").hidden = true;
+
+    if (probabilityChart) {
+        probabilityChart.destroy();
+        probabilityChart = null;
+    }
+}
+
+
+function renderIncidentTimeline(incident) {
+    const events = [
+        {
+            title: "Incident Detected",
+            time: incident.timestamp,
+            description: "Incident first detected by monitoring agent."
+        },
+        {
+            title: "Last Observed",
+            time: incident.last_seen_at,
+            description: "Most recent monitoring observation."
+        }
+    ];
+
+    if (incident.resolved_at) {
+        events.push({
+            title: "Incident Resolved",
+            time: incident.resolved_at,
+            description: "Application incident marked as resolved."
+        });
+    } else {
+        events.push({
+            title: "Awaiting Resolution",
+            time: null,
+            description: "Incident is currently open."
+        });
+    }
+
+    document.getElementById("incidentTimeline").innerHTML =
+        events.map(event => `
+            <div class="timeline-event">
+                <strong>${escapeHTML(event.title)}</strong>
+                <p>${escapeHTML(event.description)}</p>
+                <small>${escapeHTML(formatDate(event.time))}</small>
+            </div>
+        `).join("");
+}

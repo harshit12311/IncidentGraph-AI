@@ -123,6 +123,64 @@
                 </div>
             </section>
 
+            <section class="panel" id="incidentDetails" hidden>
+                <div class="panel-heading">
+                    <div>
+                        <h3>Incident Details</h3>
+                        <p id="detailIncidentId">Incident analysis</p>
+                    </div>
+                    <button onclick="closeIncidentDetails()">Back to Dashboard</button>
+                </div>
+
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <span class="stat-label">Predicted Root Cause</span>
+                        <strong id="detailCause">—</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-label">ML Confidence</span>
+                        <strong id="detailConfidence">—</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-label">CPU Usage</span>
+                        <strong id="detailCPU">—</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-label">Memory Usage</span>
+                        <strong id="detailMemory">—</strong>
+                    </article>
+                </div>
+
+                <div class="panel">
+                    <h3>Detection Information</h3>
+                    <p id="detailReason">—</p>
+                    <p id="detailHealth">—</p>
+                    <p id="detailDisk">—</p>
+                    <p id="detailTimestamp">—</p>
+                </div>
+
+                <div class="panel">
+                    <h3>AI Investigation Recommendations</h3>
+                    <ul id="incidentRecommendations">
+                        <li>Recommendations will appear here.</li>
+                    </ul>
+                </div>
+
+                <div class="panel">
+                    <h3>Incident Timeline</h3>
+                    <div id="incidentTimeline">
+                        <p>Timeline information will appear here.</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Root Cause Probability Distribution</h3>
+                    <div class="chart-container">
+                        <canvas id="probabilityChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
             <section class="panel table-panel" id="websites">
                 <div class="panel-heading">
                     <div>

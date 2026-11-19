@@ -423,3 +423,30 @@ footer {
         font-size: 23px;
     }
 }
+
+
+.timeline-event {
+    position: relative;
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-left: 3px solid #647bff;
+    background: #f7f8fc;
+    border-radius: 0 8px 8px 0;
+}
+
+.timeline-event strong {
+    display: block;
+    font-size: 13px;
+    color: #263452;
+}
+
+.timeline-event p {
+    margin: 6px 0;
+    color: #778197;
+    font-size: 12px;
+}
+
+.timeline-event small {
+    color: #536dfe;
+    font-size: 11px;
+}
