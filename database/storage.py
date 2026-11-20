@@ -45,6 +45,12 @@ def initialize_database():
                 ADD COLUMN status TEXT NOT NULL DEFAULT 'resolved'
             """)
 
+        if "severity" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN severity TEXT
+            """)
+
         if "resolved_at" not in columns:
             connection.execute("""
                 ALTER TABLE incidents
@@ -146,6 +152,7 @@ def save_incident(
                     memory_percent = ?,
                     disk_percent = ?,
                     health_status = ?,
+                    severity = ?,
                     predicted_root_cause = ?,
                     confidence_percent = ?,
                     root_cause_probabilities = ?
@@ -157,6 +164,7 @@ def save_incident(
                 metrics.get("memory_percent"),
                 metrics.get("disk_percent"),
                 health_status,
+                incident.get("severity"),
                 predicted_root_cause,
                 confidence_percent,
                 probabilities_json,
@@ -173,11 +181,11 @@ def save_incident(
             INSERT INTO incidents (
                 incident_id, timestamp, application_name, detected,
                 reasons, cpu_percent, memory_percent, disk_percent,
-                health_status, status, last_seen_at,
+                health_status, status, last_seen_at, severity,
                 predicted_root_cause, confidence_percent,
                 root_cause_probabilities
             )
-            VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
+            VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)
         """, (
             incident_id,
             now,
@@ -188,6 +196,7 @@ def save_incident(
             metrics.get("disk_percent"),
             health_status,
             now,
+            incident.get("severity"),
             predicted_root_cause,
             confidence_percent,
             probabilities_json,
@@ -340,11 +349,19 @@ def get_incident_summary():
             GROUP BY status
         """).fetchall()
 
+        by_severity = connection.execute("""
+            SELECT severity, COUNT(*) AS incident_count
+            FROM incidents
+            WHERE severity IS NOT NULL
+            GROUP BY severity
+        """).fetchall()
+
         return {
             "total_incidents": total,
             "by_application": [dict(row) for row in by_application],
             "by_health_status": [dict(row) for row in by_health_status],
             "by_status": [dict(row) for row in by_status],
+            "by_severity": [dict(row) for row in by_severity],
         }
 
 

@@ -71,6 +71,25 @@
                 </article>
             </section>
 
+            <section class="stats-grid">
+                <article class="stat-card">
+                    <span class="stat-label">Critical Incidents</span>
+                    <strong id="criticalIncidents">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">High Severity</span>
+                    <strong id="highIncidents">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Medium Severity</span>
+                    <strong id="mediumIncidents">0</strong>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-label">Low Severity</span>
+                    <strong id="lowIncidents">0</strong>
+                </article>
+            </section>
+
             <section class="charts-grid">
                 <article class="panel">
                     <div class="panel-heading">
@@ -110,6 +129,7 @@
                             <tr>
                                 <th>Incident ID</th>
                                 <th>Application</th>
+                                <th>Severity</th>
                                 <th>Health</th>
                                 <th>Predicted Root Cause</th>
                                 <th>Confidence</th>
@@ -140,6 +160,10 @@
                     <article class="stat-card">
                         <span class="stat-label">ML Confidence</span>
                         <strong id="detailConfidence">—</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span class="stat-label">Incident Severity</span>
+                        <strong id="detailSeverity">—</strong>
                     </article>
                     <article class="stat-card">
                         <span class="stat-label">CPU Usage</span>

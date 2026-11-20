@@ -61,13 +61,14 @@ function renderIncidents(incidents) {
     const tbody = document.getElementById("incidentTable");
 
     if (!incidents.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No incidents recorded yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No incidents recorded yet.</td></tr>';
         return;
     }
 
     tbody.innerHTML = incidents.map(incident => {
         const status = incident.status || "unknown";
         const health = incident.health_status || "unknown";
+        const severity = incident.severity || "Not classified";
         const cause = incident.predicted_root_cause || "Not available";
         const confidence = incident.confidence_percent;
 
@@ -75,6 +76,7 @@ function renderIncidents(incidents) {
             <tr>
                 <td><button class="incident-link" onclick="viewIncident(&quot;${escapeHTML(incident.incident_id || "")}&quot;)">${escapeHTML(incident.incident_id || "—")}</button></td>
                 <td>${escapeHTML(incident.application_name || "—")}</td>
+                <td>${escapeHTML(severity)}</td>
                 <td><span class="pill ${healthClass(health)}">${escapeHTML(health)}</span></td>
                 <td>${escapeHTML(cause)}</td>
                 <td>${confidence == null ? "—" : Number(confidence).toFixed(1) + "%"}</td>
@@ -155,6 +157,17 @@ async function loadDashboard() {
         setText("openIncidents", openCount);
         setText("resolvedIncidents", resolvedCount);
 
+        const severityCounts = incidentSummary.by_severity || [];
+        const countSeverity = severity =>
+            severityCounts
+                .filter(item => item.severity === severity)
+                .reduce((sum, item) => sum + item.incident_count, 0);
+
+        setText("criticalIncidents", countSeverity("Critical"));
+        setText("highIncidents", countSeverity("High"));
+        setText("mediumIncidents", countSeverity("Medium"));
+        setText("lowIncidents", countSeverity("Low"));
+
         setText(
             "websiteAvailability",
             websiteSummary.availability_percent == null
@@ -206,6 +219,7 @@ async function viewIncident(incidentId) {
 
         setText("detailIncidentId", incident.incident_id);
         setText("detailCause", incident.predicted_root_cause || "Not available");
+        setText("detailSeverity", incident.severity || "Not classified");
         setText(
             "detailConfidence",
             incident.confidence_percent == null

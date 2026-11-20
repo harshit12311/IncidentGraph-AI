@@ -31,11 +31,32 @@ def detect_incident(metrics, health, log_analysis):
     if metrics["disk_percent"] >= 90:
         reasons.append("High disk utilization")
 
+    # Warning-only events are classified as Low severity.
+    if log_analysis["warning_count"] > 0:
+        reasons.append(
+            f"{log_analysis['warning_count']} application warning(s) detected"
+        )
+
     incident_detected = len(reasons) > 0
+
+    # Assign severity using the highest-priority detected condition.
+    if not health["healthy"]:
+        severity = "Critical"
+    elif (
+        metrics["cpu_percent"] >= 90
+        or metrics["memory_percent"] >= 90
+        or metrics["disk_percent"] >= 90
+    ):
+        severity = "High"
+    elif log_analysis["error_count"] > 0:
+        severity = "Medium"
+    else:
+        severity = "Low"
 
     if incident_detected:
         return {
             "incident_detected": True,
+            "severity": severity,
             "incident_id": f"INC-{datetime.now().strftime('%Y%m%d%H%M%S')}",
             "timestamp": datetime.now().isoformat(),
             "reasons": reasons,
@@ -43,6 +64,7 @@ def detect_incident(metrics, health, log_analysis):
 
     return {
         "incident_detected": False,
+        "severity": None,
         "incident_id": None,
         "timestamp": datetime.now().isoformat(),
         "reasons": [],
