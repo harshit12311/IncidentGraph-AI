@@ -163,3 +163,31 @@ def incident_details(incident_id: str):
     )
 
     return incident
+
+DEPENDENCY_GRAPH_PATH = Path(__file__).resolve().parent.parent / "dependency-graph" / "graph.py"
+DEPENDENCY_GRAPH_SPEC = importlib.util.spec_from_file_location(
+    "dependency_graph_module", DEPENDENCY_GRAPH_PATH
+)
+DEPENDENCY_GRAPH_MODULE = importlib.util.module_from_spec(DEPENDENCY_GRAPH_SPEC)
+DEPENDENCY_GRAPH_SPEC.loader.exec_module(DEPENDENCY_GRAPH_MODULE)
+
+
+@app.get("/dependency-graph")
+def dependency_graph_data():
+    graph = DEPENDENCY_GRAPH_MODULE.create_dependency_graph()
+
+    return {
+        "nodes": [
+            {
+                "id": name,
+                "type": data.get("node_type", "unknown"),
+                "url": data.get("url"),
+            }
+            for name, data in graph.nodes(data=True)
+        ],
+        "edges": [
+            {"source": source, "target": target}
+            for source, target in graph.edges()
+        ],
+    }
+

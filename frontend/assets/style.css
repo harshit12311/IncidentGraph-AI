@@ -450,3 +450,25 @@ footer {
     color: #536dfe;
     font-size: 11px;
 }
+
+/* Dependency graph */
+.dependency-graph-container {
+    width: 100%;
+    min-height: 180px;
+    padding: 16px;
+    overflow: hidden;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.dependency-graph-container svg {
+    display: block;
+}
+
+.dependency-graph-container p {
+    margin: 12px 0 0;
+    color: #64748b;
+    font-size: 12px;
+}
+

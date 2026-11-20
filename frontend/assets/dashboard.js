@@ -330,3 +330,134 @@ function renderIncidentTimeline(incident) {
             </div>
         `).join("");
 }
+
+// Dependency graph visualization
+async function loadDependencyGraph() {
+    const container = document.getElementById("dependencyGraphContainer");
+
+    try {
+        const response = await fetch("/dependency-graph");
+
+        if (!response.ok) {
+            throw new Error("Unable to load dependency graph");
+        }
+
+        const data = await response.json();
+
+        const nodes = data.nodes || [];
+        const edges = data.edges || [];
+
+        if (!nodes.length) {
+            container.textContent = "No monitored components configured.";
+            return;
+        }
+
+        const nodeWidth = 190;
+        const nodeHeight = 70;
+        const gap = 70;
+        const width = Math.max(600, nodes.length * (nodeWidth + gap));
+        const height = 180;
+
+        const positions = nodes.map((node, index) => ({
+            ...node,
+            x: 30 + index * (nodeWidth + gap),
+            y: 45
+        }));
+
+        const escape = value => String(value).replace(/[&<>"']/g, char => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[char]);
+
+        const nodePositions = Object.fromEntries(
+            positions.map(node => [node.id, node])
+        );
+
+        const edgeMarkup = edges.map(edge => {
+            const source = nodePositions[edge.source];
+            const target = nodePositions[edge.target];
+
+            if (!source || !target) return "";
+
+            return `
+                <line
+                    x1="${source.x + nodeWidth}"
+                    y1="${source.y + nodeHeight / 2}"
+                    x2="${target.x}"
+                    y2="${target.y + nodeHeight / 2}"
+                    stroke="#94a3b8"
+                    stroke-width="2"
+                    marker-end="url(#dependencyArrow)"
+                />
+            `;
+        }).join("");
+
+        const nodeMarkup = positions.map(node => {
+            const isApplication = node.type === "application";
+            const fill = isApplication ? "#dbeafe" : "#dcfce7";
+            const stroke = isApplication ? "#2563eb" : "#16a34a";
+            const label = isApplication ? "APPLICATION" : "EXTERNAL WEBSITE";
+
+            return `
+                <g>
+                    <rect
+                        x="${node.x}" y="${node.y}"
+                        width="${nodeWidth}" height="${nodeHeight}"
+                        rx="10" fill="${fill}" stroke="${stroke}"
+                        stroke-width="2"
+                    />
+                    <text
+                        x="${node.x + nodeWidth / 2}"
+                        y="${node.y + 29}"
+                        text-anchor="middle"
+                        font-size="15"
+                        font-weight="600"
+                        fill="#172554"
+                    >${escape(node.id)}</text>
+                    <text
+                        x="${node.x + nodeWidth / 2}"
+                        y="${node.y + 49}"
+                        text-anchor="middle"
+                        font-size="10"
+                        fill="#475569"
+                    >${label}</text>
+                </g>
+            `;
+        }).join("");
+
+        container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <svg
+                    viewBox="0 0 ${width} ${height}"
+                    style="width:100%; min-width:600px; height:auto;"
+                    role="img"
+                    aria-label="Application and website dependency graph"
+                >
+                    <defs>
+                        <marker
+                            id="dependencyArrow"
+                            markerWidth="8"
+                            markerHeight="8"
+                            refX="6"
+                            refY="3"
+                            orient="auto"
+                        >
+                            <path d="M0,0 L0,6 L6,3 z" fill="#94a3b8"/>
+                        </marker>
+                    </defs>
+                    ${edgeMarkup}
+                    ${nodeMarkup}
+                </svg>
+            </div>
+            <p>${nodes.length} monitored components · ${edges.length} dependencies</p>
+        `;
+    } catch (error) {
+        container.textContent = "Dependency graph could not be loaded.";
+        console.error(error);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadDependencyGraph);

@@ -116,6 +116,21 @@
                 </article>
             </section>
 
+            <section class="panel" id="dependencyGraph">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Application & Website Dependency Graph</h3>
+                        <p>Live view of configured applications and external websites</p>
+                    </div>
+                    <button class="secondary-button" onclick="loadDependencyGraph()">
+                        Refresh Graph
+                    </button>
+                </div>
+                <div id="dependencyGraphContainer" class="dependency-graph-container">
+                    <p>Loading dependency graph...</p>
+                </div>
+            </section>
+
             <section class="panel table-panel" id="incidents">
                 <div class="panel-heading">
                     <div>
