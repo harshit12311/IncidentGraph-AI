@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI, Query
+from backend.llm_service import generate_incident_explanation
 from database.storage import (
     initialize_database,
     get_recent_incidents,
@@ -191,3 +192,21 @@ def dependency_graph_data():
         ],
     }
 
+
+
+@app.post("/incidents/{incident_id}/ai-explanation")
+def incident_ai_explanation(incident_id: str):
+    incident = get_incident_by_id(incident_id)
+
+    if not incident:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    result = generate_incident_explanation(incident)
+
+    return {
+        "incident_id": incident_id,
+        "predicted_root_cause": incident.get("predicted_root_cause"),
+        "confidence_percent": incident.get("confidence_percent"),
+        "ai_analysis": result,
+    }
