@@ -1,6 +1,28 @@
 from datetime import datetime
 
 
+def events_are_related(first, second):
+    """Check whether two events share meaningful incident characteristics."""
+    same_cause = (
+        first.get("predicted_root_cause")
+        and first.get("predicted_root_cause")
+        == second.get("predicted_root_cause")
+    )
+
+    same_type = (
+        first.get("type")
+        and first.get("type") == second.get("type")
+    )
+
+    same_application = (
+        first.get("application_name")
+        and first.get("application_name")
+        == second.get("application_name")
+    )
+
+    return bool(same_cause or same_type or same_application)
+
+
 def correlate_events(events, time_window_seconds=60):
     """
     Group related events that occur within a specified time window.
@@ -32,7 +54,19 @@ def correlate_events(events, time_window_seconds=60):
             current_time - previous_time
         ).total_seconds()
 
-        if time_difference <= time_window_seconds:
+        has_correlation_data = any(
+            event.get(key)
+            for key in ("predicted_root_cause", "type", "application_name")
+        ) or any(
+            current_incident[-1].get(key)
+            for key in ("predicted_root_cause", "type", "application_name")
+        )
+
+        related = events_are_related(current_incident[-1], event)
+
+        if time_difference <= time_window_seconds and (
+            related or not has_correlation_data
+        ):
             current_incident.append(event)
 
         else:

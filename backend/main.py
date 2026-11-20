@@ -44,6 +44,30 @@ def list_incidents(limit: int = Query(default=20, ge=1, le=100)):
         "incidents": incidents,
     }
 
+@app.get("/incidents/correlated")
+def correlated_incidents(limit: int = Query(default=100, ge=1, le=500)):
+    incidents = get_recent_incidents(limit=limit)
+
+    events = [
+        incident for incident in incidents
+        if incident.get("timestamp")
+    ]
+
+    groups = correlate_events(events, time_window_seconds=60)
+
+    return {
+        "count": len(groups),
+        "correlated_groups": [
+            {
+                "event_count": len(group),
+                "incidents": group,
+            }
+            for group in groups
+            if len(group) > 1
+        ],
+    }
+
+
 @app.get("/incidents/summary")
 def incident_summary():
     return get_incident_summary()
@@ -64,6 +88,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import sys
 from pathlib import Path
+import importlib.util
 
 ML_DIR = Path(__file__).resolve().parent.parent / "ml-model"
 
@@ -71,6 +96,13 @@ if str(ML_DIR) not in sys.path:
     sys.path.insert(0, str(ML_DIR))
 
 from predictor import predict_root_cause, get_root_cause_recommendations
+
+CORRELATOR_PATH = Path(__file__).resolve().parent.parent / "event-correlation" / "correlator.py"
+CORRELATOR_SPEC = importlib.util.spec_from_file_location("incident_correlator", CORRELATOR_PATH)
+CORRELATOR_MODULE = importlib.util.module_from_spec(CORRELATOR_SPEC)
+CORRELATOR_SPEC.loader.exec_module(CORRELATOR_MODULE)
+correlate_events = CORRELATOR_MODULE.correlate_events
+
 
 
 class PredictionRequest(BaseModel):
