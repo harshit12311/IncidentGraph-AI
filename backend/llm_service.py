@@ -1,12 +1,14 @@
 import os
-import requests
+from openai import OpenAI
+from dotenv import load_dotenv
 
-OLLAMA_URL = os.getenv(
-    "OLLAMA_URL",
-    "http://127.0.0.1:11434/api/generate"
+load_dotenv()
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
 )
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 def generate_incident_explanation(incident):
@@ -27,9 +29,7 @@ Reasons: {incident.get('reasons', 'Not provided')}
 Write exactly three short sections:
 
 SUMMARY: Explain the incident in two sentences.
-
-EVIDENCE: State what the supplied data supports. Do not invent causes.
-
+EVIDENCE: State what the supplied data supports.
 ACTIONS: Give exactly three short investigation actions.
 
 Important:
@@ -39,31 +39,31 @@ If evidence is insufficient, say so.
 """
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "num_predict": 120,
-                    "num_ctx": 1024,
-                    "temperature": 0.1
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You provide cautious, evidence-based IT incident analysis."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
                 }
-            },
-            timeout=(5, 120)
+            ],
+            max_tokens=250,
+            temperature=0.2,
+            timeout=30
         )
-        response.raise_for_status()
 
-        result = response.json()
-        explanation = result.get("response", "").strip()
+        explanation = response.choices[0].message.content
 
         return {
             "available": bool(explanation),
-            "explanation": explanation or None
+            "explanation": explanation.strip() if explanation else None
         }
 
-    except requests.RequestException as error:
+    except Exception as error:
         return {
             "available": False,
             "explanation": None,

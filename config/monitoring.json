@@ -15,6 +15,18 @@
             "url": "https://httpbin.org/status/200",
             "expected_status_code": 200,
             "timeout_seconds": 10
+        },
+        {
+            "name": "Example",
+            "url": "https://example.com",
+            "expected_status_code": 200,
+            "timeout_seconds": 10
+        },
+        {
+            "name": "Google",
+            "url": "https://www.google.com",
+            "expected_status_code": 200,
+            "timeout_seconds": 10
         }
     ]
 }
