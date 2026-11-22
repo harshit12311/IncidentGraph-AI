@@ -5,7 +5,15 @@
             "base_url": "http://127.0.0.1:5000",
             "health_endpoint": "/health",
             "log_file": "logs/demoshop.log",
-            "process_name": "app.py"
+            "process_name": "app.py",
+            "dependencies": [
+                {
+                    "name": "DummyJSON Product API",
+                    "url": "https://dummyjson.com/products?limit=30",
+                    "expected_status_code": 200,
+                    "timeout_seconds": 10
+                }
+            ]
         }
     ],
     "poll_interval_seconds": 15,
@@ -25,6 +33,12 @@
         {
             "name": "Google",
             "url": "https://www.google.com",
+            "expected_status_code": 200,
+            "timeout_seconds": 10
+        },
+        {
+            "name": "Live Failure Test",
+            "url": "https://api.uptimesignal.io/test/random",
             "expected_status_code": 200,
             "timeout_seconds": 10
         }

@@ -23,6 +23,9 @@ from database.storage import (
     get_log_cursor,
     update_log_cursor,
     record_website_check,
+    save_website_incident,
+    resolve_website_incidents,
+    save_application_health,
 )
 ML_DIR = BASE_DIR / "ml-model"
 
@@ -211,6 +214,20 @@ def monitor_external_website(website):
         error_message=error_message,
     )
 
+    if available:
+        resolved = resolve_website_incidents(name)
+        if resolved:
+            print(f"Recovery detected: resolved {resolved} website incident(s).")
+    else:
+        incident_id = save_website_incident(
+            website_name=name,
+            url=url,
+            status_code=status_code,
+            response_time_ms=response_time_ms,
+            error_message=error_message,
+        )
+        print(f"Website incident: {incident_id}")
+
     print("\n" + "=" * 55)
     print(f"External website: {name}")
     print("=" * 55)
@@ -239,6 +256,14 @@ def monitor_application(application, metrics):
         **health,
         "healthy": health["healthy"] and process["running"],
     }
+
+    save_application_health(
+        application_name,
+        metrics["timestamp"],
+        process,
+        effective_health,
+        metrics,
+    )
 
     new_logs = read_new_logs(application_name, log_file)
     log_analysis = analyze_logs(new_logs)
@@ -303,6 +328,16 @@ def run_cycle(applications, external_websites=None):
     for application in applications:
         try:
             monitor_application(application, metrics)
+
+            for dependency in application.get("dependencies", []):
+                try:
+                    monitor_external_website(dependency)
+                except (KeyError, TypeError, ValueError) as error:
+                    name = dependency.get("name", "Unknown dependency")
+                    print(f"Dependency configuration error for {name}: {error}")
+                except Exception as error:
+                    name = dependency.get("name", "Unknown dependency")
+                    print(f"Dependency monitoring failed for {name}: {error}")
 
         except (KeyError, TypeError, ValueError) as error:
             name = application.get("name", "Unknown application")

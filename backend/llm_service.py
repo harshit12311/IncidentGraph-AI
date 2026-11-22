@@ -1,17 +1,22 @@
 import os
-from openai import OpenAI
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 
 def generate_incident_explanation(incident):
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return {
+            "available": False,
+            "explanation": None,
+            "error": "Groq API key is not configured."
+        }
+
     prompt = f"""
 You are an IT incident investigation assistant.
 
@@ -32,26 +37,27 @@ SUMMARY: Explain the incident in two sentences.
 EVIDENCE: State what the supplied data supports.
 ACTIONS: Give exactly three short investigation actions.
 
-Important:
 The predicted cause is a hypothesis, not a confirmed diagnosis.
-Do not invent logs, database failures, or dependencies.
+Do not invent logs, failures, or dependencies.
 If evidence is insufficient, say so.
 """
 
     try:
+        client = Groq(api_key=api_key)
+
         response = client.chat.completions.create(
-            model=OPENAI_MODEL,
+            model=GROQ_MODEL,
             messages=[
                 {
                     "role": "system",
-                    "content": "You provide cautious, evidence-based IT incident analysis."
+                    "content": "Provide cautious, evidence-based IT incident analysis."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            max_tokens=250,
+            max_tokens=500,
             temperature=0.2,
             timeout=30
         )

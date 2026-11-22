@@ -2,21 +2,21 @@ from flask import Flask, jsonify, render_template
 from datetime import datetime
 import logging
 import os
+import requests
 
 app = Flask(__name__)
 
-# Create logs directory if it does not exist
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# Configure application logging
 logging.basicConfig(
     filename=os.path.join(LOG_DIR, "demoshop.log"),
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+PRODUCT_API_URL = "https://dummyjson.com/products?limit=30"
 
 
 @app.route("/")
@@ -27,8 +27,6 @@ def home():
 
 @app.route("/health")
 def health():
-    logging.info("DemoShop health check successful")
-
     return jsonify({
         "status": "healthy",
         "service": "DemoShop",
@@ -38,15 +36,45 @@ def health():
 
 @app.route("/api/products")
 def products():
-    logging.info("Product list requested")
+    logging.info("Fetching products from DummyJSON")
 
-    products = [
-        {"id": 1, "name": "Laptop", "price": 55000},
-        {"id": 2, "name": "Smartphone", "price": 25000},
-        {"id": 3, "name": "Headphones", "price": 3000}
-    ]
+    try:
+        response = requests.get(PRODUCT_API_URL, timeout=8)
+        response.raise_for_status()
+        data = response.json()
 
-    return jsonify(products)
+        products = [
+            {
+                "id": item["id"],
+                "name": item["title"],
+                "price": item["price"],
+                "description": item.get("description", ""),
+                "category": item.get("category", ""),
+                "image": item.get("thumbnail", ""),
+                "rating": item.get("rating", 0),
+                "stock": item.get("stock", 0),
+                "brand": item.get("brand", "Generic")
+            }
+            for item in data.get("products", []) if item.get("title", "").strip().lower() != "beef steak"
+        ]
+
+        logging.info("Successfully loaded %s products", len(products))
+        return jsonify(products)
+
+    except requests.RequestException as error:
+        logging.error("DummyJSON product API failure: %s", error)
+        return jsonify({
+            "status": "error",
+            "message": "Our product service is temporarily unavailable."
+        }), 502
+
+    except (ValueError, KeyError) as error:
+        logging.error("Invalid product API response: %s", error)
+        return jsonify({
+            "status": "error",
+            "message": "Unable to process product data."
+        }), 502
+
 
 @app.route("/simulate-error")
 def simulate_error():
@@ -55,12 +83,10 @@ def simulate_error():
         "status": "error",
         "message": "Simulated database connection failure"
     }), 500
+
+
 if __name__ == "__main__":
     print("DemoShop starting...")
     print("Open http://127.0.0.1:5000 in your browser")
 
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=False
-    )
+    app.run(host="0.0.0.0", port=5000, debug=False)

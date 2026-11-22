@@ -472,3 +472,233 @@ footer {
     font-size: 12px;
 }
 
+
+/* Responsive layout improvements */
+* {
+    box-sizing: border-box;
+}
+
+.stats-grid,
+.charts-grid,
+.website-summary {
+    min-width: 0;
+}
+
+.stats-grid > *,
+.charts-grid > *,
+.website-summary > * {
+    min-width: 0;
+}
+
+.website-summary {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.panel {
+    max-width: 100%;
+    min-width: 0;
+}
+
+table {
+    width: 100%;
+}
+
+@media (max-width: 760px) {
+    .website-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .panel {
+        padding: 15px;
+        overflow-x: auto;
+    }
+
+    table {
+        min-width: 600px;
+    }
+}
+
+@media (max-width: 420px) {
+    .website-summary {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .website-summary strong {
+        font-size: 15px;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Dashboard page navigation */
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.nav-link:focus-visible {
+    outline: 2px solid #8b9aff;
+    outline-offset: 2px;
+}
+
+.page-section[hidden] {
+    display: none !important;
+}
+
+@media (max-width: 760px) {
+    nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .nav-link {
+        justify-content: center;
+        padding: 11px 6px;
+        font-size: 11px;
+    }
+}
+
+/* ==========================================
+   IncidentGraph AI - Medium Slate Theme
+   ========================================== */
+
+:root {
+    color-scheme: dark;
+    --bg: #252f3e;
+    --surface: #303c4d;
+    --text: #e1e7ef;
+    --muted: #a6b1c1;
+    --border: #465367;
+    --primary: #8795dc;
+    --sidebar: #1c2635;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.sidebar {
+    background: var(--sidebar);
+}
+
+.nav-link:hover,
+.nav-link.active {
+    background: #354258;
+    color: #ffffff;
+}
+
+.brand span,
+.sidebar-bottom {
+    color: #a6b1c1;
+}
+
+.live-indicator {
+    color: #91d1b4;
+    background: #304d48;
+}
+
+button {
+    background: #6879bd;
+    color: #ffffff;
+}
+
+button:hover {
+    background: #7889cf;
+}
+
+.stat-card,
+.panel {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .12);
+}
+
+th {
+    background: #354256;
+    color: #b8c3d2;
+}
+
+td {
+    color: #d4dce7;
+    border-color: var(--border);
+}
+
+.pill {
+    background: #414e62;
+    color: #d0d8e5;
+}
+
+.pill.open,
+.pill.unhealthy,
+.pill.failed {
+    background: #563d43;
+    color: #f0a4a4;
+}
+
+.pill.resolved,
+.pill.healthy,
+.pill.available {
+    background: #304f47;
+    color: #91d1b4;
+}
+
+.website-summary div {
+    background: #39475a;
+}
+
+.timeline-event {
+    background: #39475a;
+    border-left-color: #8795dc;
+}
+
+.timeline-event strong {
+    color: #e1e7ef;
+}
+
+.timeline-event p {
+    color: #a6b1c1;
+}
+
+.timeline-event small {
+    color: #aab7f0;
+}
+
+.dependency-graph-container {
+    background: #293545;
+    border-color: #465367;
+}
+
+.dependency-graph-container p {
+    color: #a6b1c1;
+}
+
+input,
+select,
+textarea {
+    background: #354256;
+    color: #e1e7ef;
+    border-color: #526078;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #a6b1c1;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 1px solid #8795dc;
+    border-color: #8795dc;
+}
+
+a {
+    color: #aab7f0;
+}
+
+[hidden] {
+    display: none !important;
+}
+

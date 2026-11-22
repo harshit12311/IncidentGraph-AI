@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def create_dependency_graph(config_path="config/monitoring.json"):
-    """Build a graph from configured applications and external websites."""
+    """Build a directed graph from applications and their dependencies."""
 
     config_file = Path(config_path)
 
@@ -23,13 +23,22 @@ def create_dependency_graph(config_path="config/monitoring.json"):
         )
 
         for dependency in application.get("dependencies", []):
+            if isinstance(dependency, dict):
+                dependency_name = dependency["name"]
+                dependency_url = dependency.get("url")
+            else:
+                dependency_name = dependency
+                dependency_url = None
+
             graph.add_node(
-                dependency,
-                node_type="dependency"
+                dependency_name,
+                node_type="dependency",
+                url=dependency_url
             )
+
             graph.add_edge(
                 name,
-                dependency,
+                dependency_name,
                 relationship="depends_on"
             )
 
@@ -52,7 +61,6 @@ def find_affected_components(graph, failed_component):
         return []
 
     dependency_graph = nx.DiGraph()
-
     dependency_graph.add_nodes_from(graph.nodes(data=True))
 
     dependency_graph.add_edges_from(

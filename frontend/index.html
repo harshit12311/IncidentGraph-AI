@@ -18,10 +18,12 @@
                 </div>
             </div>
 
-            <nav>
-                <a class="nav-link active" href="#overview">▦ &nbsp; Overview</a>
-                <a class="nav-link" href="#incidents">◉ &nbsp; Incidents</a>
-                <a class="nav-link" href="#websites">◎ &nbsp; Website Monitoring</a>
+            <nav aria-label="Main navigation">
+                <a class="nav-link active" href="#overview" data-page="overview">▦ &nbsp; Overview</a>
+                <a class="nav-link" href="#incidents" data-page="incidents">◉ &nbsp; Incidents</a>
+                <a class="nav-link" href="#websites" data-page="websites">◎ &nbsp; Website Monitoring</a>
+                <a class="nav-link" href="#dependency-graph" data-page="dependency-graph">⌘ &nbsp; Dependency Graph</a>
+                <a class="nav-link" href="#ai-investigation" data-page="ai-investigation">✧ &nbsp; AI Investigation</a>
             </nav>
 
             <div class="sidebar-bottom">
@@ -43,6 +45,7 @@
                 </div>
             </header>
 
+            <div class="page-section" id="overviewPage">
             <section class="section-heading">
                 <h2>Incident Summary</h2>
                 <span id="lastUpdated">Waiting for data...</span>
@@ -90,6 +93,33 @@
                 </article>
             </section>
 
+            <section class="panel table-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Component Health</h3>
+                        <p>Current health of applications and monitored services</p>
+                    </div>
+                    <span class="live-indicator">● Live Monitoring</span>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Component</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>HTTP Status</th>
+                                <th>Response Time</th>
+                                <th>Last Checked</th>
+                            </tr>
+                        </thead>
+                        <tbody id="componentHealthTable">
+                            <tr><td colspan="6" class="empty-state">Loading component health...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="charts-grid">
                 <article class="panel">
                     <div class="panel-heading">
@@ -116,6 +146,9 @@
                 </article>
             </section>
 
+                        </div>
+
+            <div class="page-section" id="dependency-graphPage" hidden>
             <section class="panel" id="dependencyGraph">
                 <div class="panel-heading">
                     <div>
@@ -131,6 +164,9 @@
                 </div>
             </section>
 
+                        </div>
+
+            <div class="page-section" id="incidentsPage" hidden>
             <section class="panel table-panel" id="incidents">
                 <div class="panel-heading">
                     <div>
@@ -180,14 +216,21 @@
                         <span class="stat-label">Incident Severity</span>
                         <strong id="detailSeverity">—</strong>
                     </article>
-                    <article class="stat-card">
+                    <article class="stat-card" id="applicationCpuCard">
                         <span class="stat-label">CPU Usage</span>
                         <strong id="detailCPU">—</strong>
                     </article>
-                    <article class="stat-card">
+                    <article class="stat-card" id="applicationMemoryCard">
                         <span class="stat-label">Memory Usage</span>
                         <strong id="detailMemory">—</strong>
                     </article>
+                </div>
+
+                <div class="panel" id="websiteIncidentEvidence" hidden>
+                    <h3>Website Failure Evidence</h3>
+                    <p id="detailWebsiteStatus">HTTP status: —</p>
+                    <p id="detailWebsiteResponse">Response time: —</p>
+                    <p id="detailWebsiteUrl">Website URL: —</p>
                 </div>
 
                 <div class="panel">
@@ -199,21 +242,13 @@
                 </div>
 
                 <div class="panel">
-                    <h3>AI Investigation Recommendations</h3>
-                    <p class="muted">Rule-based recommendations using the ML-predicted root cause. Local LLM analysis is currently disabled for server stability.</p>
-                    <ul id="incidentRecommendations">
-                        <li>Recommendations will appear here.</li>
-                    </ul>
-                </div>
-
-                <div class="panel">
                     <h3>Incident Timeline</h3>
                     <div id="incidentTimeline">
                         <p>Timeline information will appear here.</p>
                     </div>
                 </div>
 
-                <div class="panel">
+                <div class="panel" id="rootCauseProbabilityPanel">
                     <h3>Root Cause Probability Distribution</h3>
                     <div class="chart-container">
                         <canvas id="probabilityChart"></canvas>
@@ -221,6 +256,9 @@
                 </div>
             </section>
 
+                        </div>
+
+            <div class="page-section" id="websitesPage" hidden>
             <section class="panel table-panel" id="websites">
                 <div class="panel-heading">
                     <div>
@@ -253,10 +291,46 @@
                 </div>
             </section>
 
+            
+            </div>
+
+            <div class="page-section" id="ai-investigationPage" hidden>
+                <section class="section-heading">
+                    <div>
+                        <h2>AI Investigation</h2>
+                        <p id="aiSelectedIncident">Select an incident from the Incidents page to begin investigation.</p>
+                    </div>
+                </section>
+<div class="panel">
+                    <h3>AI Incident Investigation</h3>
+                    <p class="muted">Generate an evidence-based incident explanation using the hosted Groq LLM.</p>
+                    <button id="generateAIButton" type="button">Generate AI Investigation</button>
+                    <p id="aiInvestigationStatus" role="status">AI investigation has not been generated.</p>
+                    <div id="aiInvestigationResult" hidden>
+                        <h4>Incident Summary</h4>
+                        <p id="aiSummary"></p>
+                        <h4>Supporting Evidence</h4>
+                        <p id="aiEvidence"></p>
+                        <h4>Recommended Actions</h4>
+                        <div id="aiActions"></div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Rule-Based Investigation Fallback</h3>
+                    <p class="muted">Available even when the hosted LLM or internet connection is unavailable.</p>
+                    <ul id="incidentRecommendations">
+                        <li>Recommendations will appear here.</li>
+                    </ul>
+                </div>
+
+                
+            </div>
+
             <footer>IncidentGraph AI · Intelligent Incident Monitoring and Root Cause Analysis</footer>
         </main>
     </div>
 
-    <script src="/frontend/assets/dashboard.js"></script>
+    <script src="/frontend/assets/dashboard.js?v=6"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 let applicationChart;
 let statusChart;
 
-async function fetchJSON(url) {
-    const response = await fetch(url);
+async function fetchJSON(url, options = {}) {
+    const response = await fetch(url, options);
     if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
     }
@@ -106,6 +106,63 @@ function renderWebsiteChecks(checks) {
     `).join("");
 }
 
+function renderComponentHealth(applications, checks, graph) {
+    const tbody = document.getElementById("componentHealthTable");
+    if (!tbody) return;
+
+    const rows = [];
+    const dependencyNames = new Set(
+        (graph.nodes || [])
+            .filter(node => node.type === "dependency")
+            .map(node => node.id)
+    );
+
+    for (const app of applications) {
+        const healthy = Boolean(app.healthy) && Boolean(app.process_running);
+        rows.push(`
+            <tr>
+                <td>${escapeHTML(app.application_name)}</td>
+                <td>Application</td>
+                <td><span class="pill ${healthy ? "healthy" : "unhealthy"}">${healthy ? "Healthy" : "Unhealthy"}</span></td>
+                <td>${app.status_code ?? "—"} / Process ${app.process_running ? "Running" : "Stopped"}</td>
+                <td>CPU ${Number(app.cpu_percent ?? 0).toFixed(1)}% · RAM ${Number(app.memory_percent ?? 0).toFixed(1)}% · Disk ${Number(app.disk_percent ?? 0).toFixed(1)}%</td>
+                <td>${escapeHTML(formatDate(app.checked_at))}</td>
+            </tr>
+        `);
+    }
+
+    const latestChecks = new Map();
+    for (const check of checks) {
+        if (!latestChecks.has(check.website_name)) {
+            latestChecks.set(check.website_name, check);
+        }
+    }
+
+    for (const check of latestChecks.values()) {
+        const available = Boolean(check.available);
+        rows.push(`
+            <tr>
+                <td>${escapeHTML(check.website_name || "—")}</td>
+                <td>${dependencyNames.has(check.website_name) ? "Service Dependency" : "External Website"}</td>
+                <td><span class="pill ${available ? "available" : "failed"}">${available ? "Available" : "Unavailable"}</span></td>
+                <td>${check.status_code ?? "—"}</td>
+                <td>${check.response_time_ms == null ? "—" : Number(check.response_time_ms).toFixed(1) + " ms"}</td>
+                <td>${escapeHTML(formatDate(check.checked_at))}</td>
+            </tr>
+        `);
+    }
+
+    const priority = row =>
+        row.includes("<td>Application</td>") ? 0 :
+        row.includes("<td>Service Dependency</td>") ? 1 : 2;
+
+    rows.sort((a, b) => priority(a) - priority(b));
+
+    tbody.innerHTML = rows.length
+        ? rows.join("")
+        : '<tr><td colspan="6" class="empty-state">No component health data available yet.</td></tr>';
+}
+
 function escapeHTML(value) {
     return String(value).replace(/[&<>"']/g, character => ({
         "&": "&amp;",
@@ -127,8 +184,8 @@ function healthClass(health) {
 
 function formatDate(value) {
     if (!value) return "—";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+    const date = new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(value) ? value : value + "Z");
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 }
 
 async function loadDashboard() {
@@ -137,12 +194,14 @@ async function loadDashboard() {
     refreshButton.textContent = "Loading...";
 
     try {
-        const [incidentSummary, incidentData, websiteSummary, websiteData] =
+        const [incidentSummary, incidentData, websiteSummary, websiteData, applicationHealth, dependencyGraph] =
             await Promise.all([
                 fetchJSON("/incidents/summary"),
                 fetchJSON("/incidents?limit=20"),
                 fetchJSON("/website-checks/summary"),
-                fetchJSON("/website-checks?limit=20")
+                fetchJSON("/website-checks?limit=100"),
+                fetchJSON("/application-health"),
+                fetchJSON("/dependency-graph")
             ]);
 
         const statuses = incidentSummary.by_status || [];
@@ -186,8 +245,13 @@ async function loadDashboard() {
         createCharts(incidentSummary);
         renderIncidents(incidentData.incidents || []);
         renderWebsiteChecks(websiteData.checks || []);
+        renderComponentHealth(
+            applicationHealth.applications || [],
+            websiteData.checks || [],
+            dependencyGraph
+        );
 
-        setText("lastUpdated", "Updated " + new Date().toLocaleTimeString());
+        setText("lastUpdated", "Updated " + new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" }));
     } catch (error) {
         console.error("Dashboard loading failed:", error);
         setText("lastUpdated", "Could not load API data. Check server connection.");
@@ -204,8 +268,13 @@ setInterval(loadDashboard, 15000);
 
 
 let probabilityChart;
+let selectedIncidentId = null;
 
 async function viewIncident(incidentId) {
+    selectedIncidentId = incidentId;
+    const selectedLabel = document.getElementById("aiSelectedIncident");
+    if (selectedLabel) selectedLabel.textContent = "Selected incident: " + incidentId;
+
     const section = document.getElementById("incidentDetails");
     section.hidden = false;
     section.scrollIntoView({ behavior: "smooth" });
@@ -217,6 +286,13 @@ async function viewIncident(incidentId) {
             "/incidents/" + encodeURIComponent(incidentId)
         );
 
+        const aiButton = document.getElementById("generateAIButton");
+        aiButton.onclick = () => generateAIInvestigation(incidentId);
+        aiButton.disabled = false;
+        document.getElementById("aiInvestigationResult").hidden = true;
+        document.getElementById("aiInvestigationStatus").textContent =
+            "AI investigation has not been generated.";
+
         setText("detailIncidentId", incident.incident_id);
         setText("detailCause", incident.predicted_root_cause || "Not available");
         setText("detailSeverity", incident.severity || "Not classified");
@@ -226,12 +302,30 @@ async function viewIncident(incidentId) {
                 ? "—"
                 : Number(incident.confidence_percent).toFixed(1) + "%"
         );
-        setText("detailCPU", Number(incident.cpu_percent || 0).toFixed(1) + "%");
-        setText("detailMemory", Number(incident.memory_percent || 0).toFixed(1) + "%");
+        const isWebsiteIncident = String(incident.application_name || "").startsWith("Website:");
+
+        document.getElementById("applicationCpuCard").hidden = isWebsiteIncident;
+        document.getElementById("applicationMemoryCard").hidden = isWebsiteIncident;
+        document.getElementById("websiteIncidentEvidence").hidden = !isWebsiteIncident;
+        document.getElementById("detailDisk").hidden = isWebsiteIncident;
+
+        if (isWebsiteIncident) {
+            setText("detailWebsiteStatus", "HTTP status: " +
+                (incident.website_status_code ?? "Not recorded"));
+            setText("detailWebsiteResponse", "Response time: " +
+                (incident.website_response_time_ms == null
+                    ? "Not recorded"
+                    : Number(incident.website_response_time_ms).toFixed(1) + " ms"));
+            setText("detailWebsiteUrl", "Website URL: " +
+                (incident.website_url || "Not recorded"));
+        } else {
+            setText("detailCPU", Number(incident.cpu_percent || 0).toFixed(1) + "%");
+            setText("detailMemory", Number(incident.memory_percent || 0).toFixed(1) + "%");
+            setText("detailDisk", "Disk usage: " + Number(incident.disk_percent || 0).toFixed(1) + "%");
+        }
 
         setText("detailReason", "Detection reason: " + (incident.reasons || "Not recorded"));
         setText("detailHealth", "Health status: " + (incident.health_status || "Unknown"));
-        setText("detailDisk", "Disk usage: " + Number(incident.disk_percent || 0).toFixed(1) + "%");
         setText("detailTimestamp", "Detected at: " + formatDate(incident.timestamp));
         renderIncidentTimeline(incident);
 
@@ -241,13 +335,20 @@ async function viewIncident(incidentId) {
             ? recommendations.map(item => `<li>${escapeHTML(item)}</li>`).join("")
             : "<li>No recommendations available.</li>";
 
+        const probabilityPanel = document.getElementById("rootCauseProbabilityPanel");
+        probabilityPanel.hidden = isWebsiteIncident;
+
+        if (probabilityChart) {
+            probabilityChart.destroy();
+            probabilityChart = null;
+        }
+
         const probabilities = incident.root_cause_probabilities || {};
         const labels = Object.keys(probabilities);
         const values = Object.values(probabilities);
 
-        if (probabilityChart) probabilityChart.destroy();
-
-        probabilityChart = new Chart(
+        if (!isWebsiteIncident && labels.length > 0) {
+            probabilityChart = new Chart(
             document.getElementById("probabilityChart"),
             {
                 type: "bar",
@@ -276,7 +377,8 @@ async function viewIncident(incidentId) {
                     }
                 }
             }
-        );
+            );
+        }
     } catch (error) {
         console.error("Incident details loading failed:", error);
         setText("detailIncidentId", "Unable to load incident details.");
@@ -397,9 +499,25 @@ async function loadDependencyGraph() {
 
         const nodeMarkup = positions.map(node => {
             const isApplication = node.type === "application";
-            const fill = isApplication ? "#dbeafe" : "#dcfce7";
-            const stroke = isApplication ? "#2563eb" : "#16a34a";
-            const label = isApplication ? "APPLICATION" : "EXTERNAL WEBSITE";
+            const isDependency = node.type === "dependency";
+
+            const fill = isApplication
+                ? "#dbeafe"
+                : isDependency
+                    ? "#ffedd5"
+                    : "#dcfce7";
+
+            const stroke = isApplication
+                ? "#2563eb"
+                : isDependency
+                    ? "#ea580c"
+                    : "#16a34a";
+
+            const label = isApplication
+                ? "APPLICATION"
+                : isDependency
+                    ? "SERVICE DEPENDENCY"
+                    : "EXTERNAL WEBSITE";
 
             return `
                 <g>
@@ -461,3 +579,120 @@ async function loadDependencyGraph() {
 }
 
 document.addEventListener("DOMContentLoaded", loadDependencyGraph);
+
+async function generateAIInvestigation(incidentId) {
+    const button = document.getElementById("generateAIButton");
+    const status = document.getElementById("aiInvestigationStatus");
+    const result = document.getElementById("aiInvestigationResult");
+
+    button.disabled = true;
+    button.textContent = "Generating...";
+    status.textContent = "Requesting incident analysis from Groq...";
+    result.hidden = true;
+
+    try {
+        const data = await fetchJSON(
+            "/incidents/" + encodeURIComponent(incidentId) + "/ai-explanation",
+            { method: "POST" }
+        );
+
+        const analysis = data.ai_analysis;
+
+        if (!analysis || !analysis.available || !analysis.explanation) {
+            throw new Error(analysis?.error || "AI analysis unavailable");
+        }
+
+        const explanation = analysis.explanation;
+
+        const sections = {};
+        const headingPattern =
+            /(?:^|\n)\s{0,3}(?:#{1,3}\s*)?(?:\*\*)?\s*(SUMMARY|EVIDENCE|ACTIONS)\s*:?\s*(?:\*\*)?\s*:?\s*/gi;
+
+        const headings = [...explanation.matchAll(headingPattern)];
+
+        headings.forEach((match, index) => {
+            const contentStart = match.index + match[0].length;
+            const contentEnd = index + 1 < headings.length
+                ? headings[index + 1].index
+                : explanation.length;
+
+            sections[match[1].toUpperCase()] =
+                explanation.slice(contentStart, contentEnd).trim();
+        });
+
+        document.getElementById("aiSummary").textContent =
+            sections.SUMMARY || "Not provided.";
+
+        document.getElementById("aiEvidence").textContent =
+            sections.EVIDENCE || "Not provided.";
+
+        const actions = (sections.ACTIONS || "")
+            .split("\n")
+            .map(line => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+            .filter(Boolean);
+        const actionList = document.createElement("ul");
+
+        actions.forEach(action => {
+            const item = document.createElement("li");
+            item.textContent = action;
+            actionList.appendChild(item);
+        });
+
+        const actionsContainer = document.getElementById("aiActions");
+        actionsContainer.replaceChildren(actionList);
+
+        result.hidden = false;
+        status.textContent = "AI investigation generated successfully.";
+    } catch (error) {
+        status.textContent =
+            "Hosted AI unavailable. Use the rule-based recommendations below. " +
+            error.message;
+    } finally {
+        button.disabled = false;
+        button.textContent = "Generate AI Investigation";
+    }
+}
+
+/* IncidentGraph AI page navigation */
+function showDashboardPage(pageName) {
+    const pages = {
+        overview: ["overviewPage"],
+        incidents: ["incidentsPage"],
+        "ai-investigation": ["ai-investigationPage"],
+        websites: ["websitesPage"],
+        "dependency-graph": ["dependency-graphPage"]
+    };
+
+    if (!pages[pageName]) return;
+
+    document.querySelectorAll(".nav-link[data-page]").forEach(link => {
+        const active = link.dataset.page === pageName;
+        link.classList.toggle("active", active);
+        if (active) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+    });
+
+    document.querySelectorAll(".page-section").forEach(section => {
+        section.hidden = !pages[pageName].includes(section.id);
+    });
+
+    if (pageName === "dependency-graph") loadDependencyGraph();
+
+    if (pageName === "ai-investigation" && !selectedIncidentId) {
+        document.getElementById("aiInvestigationStatus").textContent =
+            "Select an incident from the Incidents page to begin investigation.";
+        document.getElementById("generateAIButton").disabled = true;
+    } else if (pageName === "ai-investigation") {
+        document.getElementById("generateAIButton").disabled = false;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+document.querySelectorAll(".nav-link[data-page]").forEach(link => {
+    link.addEventListener("click", event => {
+        event.preventDefault();
+        showDashboardPage(link.dataset.page);
+        history.replaceState(null, "", link.getAttribute("href"));
+    });
+});

@@ -80,6 +80,24 @@ def initialize_database():
                 ADD COLUMN root_cause_probabilities TEXT
             """)
 
+        if "website_status_code" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN website_status_code INTEGER
+            """)
+
+        if "website_response_time_ms" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN website_response_time_ms REAL
+            """)
+
+        if "website_url" not in columns:
+            connection.execute("""
+                ALTER TABLE incidents
+                ADD COLUMN website_url TEXT
+            """)
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS log_cursors (
                 application_name TEXT PRIMARY KEY,
@@ -100,6 +118,20 @@ def initialize_database():
                 response_time_ms REAL,
                 available INTEGER NOT NULL,
                 error_message TEXT
+            )
+        """)
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS application_health (
+                application_name TEXT PRIMARY KEY,
+                checked_at TEXT NOT NULL,
+                process_running INTEGER NOT NULL,
+                pid INTEGER,
+                status_code INTEGER,
+                healthy INTEGER NOT NULL,
+                cpu_percent REAL,
+                memory_percent REAL,
+                disk_percent REAL
             )
         """)
 
@@ -204,9 +236,78 @@ def save_incident(
 
         return incident_id
 
+
+
+def save_website_incident(
+    website_name, url, status_code, response_time_ms, error_message=None
+):
+    """Create or update one open incident for an unavailable website."""
+    now = datetime.now().isoformat()
+    application_name = f"Website: {website_name}"
+    reason = error_message or f"Website returned HTTP {status_code}"
+
+    with get_connection() as connection:
+        existing = connection.execute("""
+            SELECT incident_id FROM incidents
+            WHERE application_name = ? AND status = 'open'
+            ORDER BY id DESC LIMIT 1
+        """, (application_name,)).fetchone()
+
+        if existing:
+            connection.execute("""
+                UPDATE incidents
+                SET last_seen_at = ?, reasons = ?, health_status = 'unhealthy',
+                    website_status_code = ?, website_response_time_ms = ?,
+                    website_url = ?
+                WHERE incident_id = ?
+            """, (
+                now, reason, status_code, response_time_ms,
+                url, existing["incident_id"]
+            ))
+            return existing["incident_id"]
+
+        incident_id = (
+            f"INC-{datetime.now().strftime('%Y%m%d%H%M%S')}-"
+            f"{uuid.uuid4().hex[:8]}"
+        )
+
+        connection.execute("""
+            INSERT INTO incidents (
+                incident_id, timestamp, application_name, detected,
+                reasons, cpu_percent, memory_percent, disk_percent,
+                health_status, status, last_seen_at, severity,
+                predicted_root_cause, confidence_percent,
+                website_status_code, website_response_time_ms, website_url
+            )
+            VALUES (?, ?, ?, 1, ?, NULL, NULL, NULL,
+                    'unhealthy', 'open', ?, 'High',
+                    'website_unavailable', NULL, ?, ?, ?)
+        """, (
+            incident_id, now, application_name, reason, now,
+            status_code, response_time_ms, url
+        ))
+
+        return incident_id
+
 def resolve_application_incidents(application_name):
     """Resolve all open incidents for an application after recovery."""
     now = datetime.now().isoformat()
+
+    with get_connection() as connection:
+        cursor = connection.execute("""
+            UPDATE incidents
+            SET status = 'resolved', resolved_at = ?
+            WHERE application_name = ? AND status = 'open'
+        """, (now, application_name))
+
+        return cursor.rowcount
+
+
+
+def resolve_website_incidents(website_name):
+    """Resolve open website incidents after a successful availability check."""
+    now = datetime.now().isoformat()
+    application_name = f"Website: {website_name}"
 
     with get_connection() as connection:
         cursor = connection.execute("""
@@ -388,3 +489,45 @@ def get_incident_by_id(incident_id):
                 incident["root_cause_probabilities"] = {}
 
         return incident
+
+
+def save_application_health(application_name, checked_at, process, health, metrics):
+    """Store the latest application monitoring snapshot."""
+    with get_connection() as connection:
+        connection.execute("""
+            INSERT INTO application_health (
+                application_name, checked_at, process_running, pid,
+                status_code, healthy, cpu_percent, memory_percent, disk_percent
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(application_name) DO UPDATE SET
+                checked_at = excluded.checked_at,
+                process_running = excluded.process_running,
+                pid = excluded.pid,
+                status_code = excluded.status_code,
+                healthy = excluded.healthy,
+                cpu_percent = excluded.cpu_percent,
+                memory_percent = excluded.memory_percent,
+                disk_percent = excluded.disk_percent
+        """, (
+            application_name,
+            checked_at,
+            int(process.get("running", False)),
+            process.get("pid"),
+            health.get("status_code"),
+            int(health.get("healthy", False)),
+            metrics.get("cpu_percent"),
+            metrics.get("memory_percent"),
+            metrics.get("disk_percent"),
+        ))
+
+
+def get_latest_application_health():
+    """Return the latest health snapshot for each monitored application."""
+    with get_connection() as connection:
+        rows = connection.execute("""
+            SELECT *
+            FROM application_health
+            ORDER BY application_name
+        """).fetchall()
+        return [dict(row) for row in rows]

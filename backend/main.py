@@ -8,6 +8,7 @@ from database.storage import (
     get_incident_summary,
     get_recent_website_checks,
     get_website_check_summary,
+    get_latest_application_health,
 )
 
 app = FastAPI(
@@ -79,6 +80,13 @@ def list_website_checks(limit: int = Query(default=50, ge=1, le=500)):
     checks = get_recent_website_checks(limit=limit)
     return {"count": len(checks), "checks": checks}
 
+
+
+
+@app.get("/application-health")
+def application_health():
+    records = get_latest_application_health()
+    return {"count": len(records), "applications": records}
 
 @app.get("/website-checks/summary")
 def website_check_summary():
