@@ -10,3 +10,9 @@ database/*.db
 # Python cache files
 __pycache__/
 *.py[cod]
+backups/
+
+# Local backup and experimental files
+*.backup
+*.bak
+ml-model/real_world_metrics*.csv
