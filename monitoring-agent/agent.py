@@ -16,6 +16,8 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from incident_detection.detector import detect_incident
+from safe_http import safe_get
+from database.auth_schema import initialize_auth_schema, initialize_ownership_schema
 from database.storage import (
     initialize_database,
     save_incident,
@@ -26,6 +28,11 @@ from database.storage import (
     save_website_incident,
     resolve_website_incidents,
     save_application_health,
+    get_active_user_websites,
+    update_user_website_status,
+    record_user_website_check,
+    save_user_website_incident,
+    resolve_user_website_incidents,
 )
 ML_DIR = BASE_DIR / "ml-model"
 
@@ -321,6 +328,75 @@ def monitor_application(application, metrics):
             print("\nNo active incident detected.")
 
 
+
+def monitor_user_website(website):
+    """Safely monitor one website registered by a platform user."""
+    website_id = website["website_id"]
+    user_id = website["user_id"]
+    name = website["name"]
+    url = website["url"]
+    expected_status = website.get("expected_status_code", 200)
+    timeout = website.get("timeout_seconds", 10)
+    was_active = website.get("monitoring_status") == "active"
+
+    start_time = time.perf_counter()
+    status_code = None
+    error_message = None
+    available = False
+
+    try:
+        status_code = safe_get(url, timeout=timeout)
+        available = status_code == expected_status
+
+        if not available:
+            error_message = (
+                f"Unexpected HTTP status: {status_code}; "
+                f"expected {expected_status}"
+            )
+
+        if not was_active and available:
+            update_user_website_status(user_id, website_id, "active")
+            print(f"User website activated: {name}")
+
+    except Exception as error:
+        error_message = f"{type(error).__name__}: {error}"
+
+    response_time_ms = round(
+        (time.perf_counter() - start_time) * 1000, 2
+    )
+
+    record_user_website_check(
+        user_id=user_id,
+        website_id=website_id,
+        website_name=name,
+        url=url,
+        status_code=status_code,
+        response_time_ms=response_time_ms,
+        available=available,
+        error_message=error_message,
+    )
+
+    if not was_active:
+        print(f"Pending website: {name} | HTTP status: {status_code}")
+        return
+
+    if available:
+        resolved = resolve_user_website_incidents(user_id, website_id)
+        if resolved:
+            print(f"Recovery detected for {name}: resolved {resolved} incident(s).")
+    else:
+        incident_id = save_user_website_incident(
+            user_id=user_id,
+            website_id=website_id,
+            website_name=name,
+            url=url,
+            status_code=status_code,
+            response_time_ms=response_time_ms,
+            error_message=error_message,
+        )
+        print(f"User website incident: {incident_id} | {name}")
+
+
 def run_cycle(applications, external_websites=None):
     """Run one cycle across applications and external websites."""
     metrics = collect_system_metrics()
@@ -359,6 +435,14 @@ def run_cycle(applications, external_websites=None):
             name = website.get("name", "Unknown website")
             print(f"\nWebsite monitoring failed for {name}: {error}")
 
+    # Monitor websites registered by platform users.
+    for website in get_active_user_websites():
+        try:
+            monitor_user_website(website)
+        except Exception as error:
+            name = website.get("name", "Unknown website")
+            print(f"\nUser website monitoring failed for {name}: {error}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="IncidentGraph AI monitoring agent")
@@ -370,6 +454,8 @@ def main():
     args = parser.parse_args()
 
     initialize_database()
+    initialize_auth_schema()
+    initialize_ownership_schema()
     config = load_config()
     applications = config["applications"]
     external_websites = config.get("external_websites", [])

@@ -22,7 +22,7 @@
                 <a class="nav-link active" href="#overview" data-page="overview">▦ &nbsp; Overview</a>
                 <a class="nav-link" href="#incidents" data-page="incidents">◉ &nbsp; Incidents</a>
                 <a class="nav-link" href="#websites" data-page="websites">◎ &nbsp; Website Monitoring</a>
-                <a class="nav-link" href="#dependency-graph" data-page="dependency-graph">⌘ &nbsp; Dependency Graph</a>
+                <a class="nav-link admin-only" href="#dependency-graph" data-page="dependency-graph">⌘ &nbsp; Dependency Graph</a>
                 <a class="nav-link" href="#ai-investigation" data-page="ai-investigation">✧ &nbsp; AI Investigation</a>
             </nav>
 
@@ -40,8 +40,10 @@
                     <p class="subtitle">Monitor application health and investigate incidents.</p>
                 </div>
                 <div class="topbar-right">
+                    <span id="accountInfo">Loading account...</span>
                     <span class="live-indicator">● Live Dashboard</span>
                     <button id="refreshButton">↻ Refresh</button>
+                    <button id="logoutButton" type="button">Logout</button>
                 </div>
             </header>
 
@@ -93,7 +95,7 @@
                 </article>
             </section>
 
-            <section class="panel table-panel">
+            <section class="panel table-panel admin-only">
                 <div class="panel-heading">
                     <div>
                         <h3>Component Health</h3>
@@ -266,6 +268,41 @@
                         <p>External website availability and response checks</p>
                     </div>
                 </div>
+
+                <section class="panel website-registration">
+                    <h3>Add a Website to Monitor</h3>
+                    <form id="addWebsiteForm">
+                        <label for="websiteName">Website name</label>
+                        <input id="websiteName" name="name" type="text" minlength="2" maxlength="100" required placeholder="My Website">
+
+                        <label for="websiteUrl">Public website URL</label>
+                        <input id="websiteUrl" name="url" type="url" required placeholder="https://example.com">
+
+                        <label>
+                            <input id="websiteOwnership" type="checkbox" required>
+                            I own this website or have permission to monitor it.
+                        </label>
+
+                        <button type="submit">Add Website</button>
+                        <p id="websiteFormMessage" role="status"></p>
+                    </form>
+                    <p class="muted">New websites start as Pending until the monitoring server can reach them. Private and localhost addresses are not allowed.</p>
+                </section>
+
+                <section class="panel">
+                    <h3>My Registered Websites</h3>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>Name</th><th>URL</th><th>Monitoring Status</th><th>Action</th></tr>
+                            </thead>
+                            <tbody id="registeredWebsitesTable">
+                                <tr><td colspan="4" class="empty-state">Loading your websites...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <div class="website-summary">
                     <div><span>Total Checks</span><strong id="totalChecks">—</strong></div>
                     <div><span>Successful</span><strong id="successfulChecks">—</strong></div>

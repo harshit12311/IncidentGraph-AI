@@ -1,5 +1,39 @@
 let applicationChart;
 let statusChart;
+let currentUser = null;
+
+async function initializeDashboard() {
+    try {
+        const response = await fetch("/auth/me", { credentials: "same-origin" });
+
+        if (!response.ok) {
+            window.location.replace("/frontend/login.html");
+            return;
+        }
+
+        const data = await response.json();
+        currentUser = data.user;
+
+        const accountInfo = document.getElementById("accountInfo");
+        if (accountInfo) {
+            accountInfo.textContent = `${currentUser.email} (${currentUser.role})`;
+        }
+
+        const adminOnlyElements = document.querySelectorAll(".admin-only");
+        adminOnlyElements.forEach(element => {
+            element.hidden = currentUser.role !== "admin";
+        });
+
+        await loadDashboard();
+
+        if (currentUser.role === "admin") {
+            await loadDependencyGraph();
+        }
+    } catch (error) {
+        console.error("Authentication check failed:", error);
+        window.location.replace("/frontend/login.html");
+    }
+}
 
 async function fetchJSON(url, options = {}) {
     const response = await fetch(url, options);
@@ -194,15 +228,23 @@ async function loadDashboard() {
     refreshButton.textContent = "Loading...";
 
     try {
-        const [incidentSummary, incidentData, websiteSummary, websiteData, applicationHealth, dependencyGraph] =
+        const [incidentSummary, incidentData, websiteSummary, websiteData] =
             await Promise.all([
                 fetchJSON("/incidents/summary"),
                 fetchJSON("/incidents?limit=20"),
                 fetchJSON("/website-checks/summary"),
-                fetchJSON("/website-checks?limit=100"),
+                fetchJSON("/website-checks?limit=100")
+            ]);
+
+        let applicationHealth = { applications: [] };
+        let dependencyGraph = { nodes: [], edges: [] };
+
+        if (currentUser && currentUser.role === "admin") {
+            [applicationHealth, dependencyGraph] = await Promise.all([
                 fetchJSON("/application-health"),
                 fetchJSON("/dependency-graph")
             ]);
+        }
 
         const statuses = incidentSummary.by_status || [];
         const openCount = statuses
@@ -263,8 +305,21 @@ async function loadDashboard() {
 
 document.getElementById("refreshButton").addEventListener("click", loadDashboard);
 
-loadDashboard();
-setInterval(loadDashboard, 15000);
+document.getElementById("logoutButton").addEventListener("click", async () => {
+    try {
+        await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "same-origin"
+        });
+    } finally {
+        window.location.replace("/frontend/login.html");
+    }
+});
+
+initializeDashboard();
+setInterval(() => {
+    if (currentUser) loadDashboard();
+}, 15000);
 
 
 let probabilityChart;
@@ -436,6 +491,11 @@ function renderIncidentTimeline(incident) {
 // Dependency graph visualization
 async function loadDependencyGraph() {
     const container = document.getElementById("dependencyGraphContainer");
+
+    if (!currentUser || currentUser.role !== "admin") {
+        if (container) container.textContent = "Administrator access required.";
+        return;
+    }
 
     try {
         const response = await fetch("/dependency-graph");
@@ -665,6 +725,12 @@ function showDashboardPage(pageName) {
 
     if (!pages[pageName]) return;
 
+    if (pageName === "dependency-graph" &&
+        (!currentUser || currentUser.role !== "admin")) {
+        showDashboardPage("overview");
+        return;
+    }
+
     document.querySelectorAll(".nav-link[data-page]").forEach(link => {
         const active = link.dataset.page === pageName;
         link.classList.toggle("active", active);
@@ -695,4 +761,85 @@ document.querySelectorAll(".nav-link[data-page]").forEach(link => {
         showDashboardPage(link.dataset.page);
         history.replaceState(null, "", link.getAttribute("href"));
     });
+});
+
+// User-owned website management
+async function loadRegisteredWebsites() {
+    const tbody = document.getElementById("registeredWebsitesTable");
+    if (!tbody) return;
+
+    try {
+        const data = await fetchJSON("/websites");
+
+        if (!data.websites.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No websites registered yet. Add your first website above.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.websites.map(website => `
+            <tr>
+                <td>${escapeHTML(website.name)}</td>
+                <td>${escapeHTML(website.url)}</td>
+                <td>${escapeHTML(website.monitoring_status)}</td>
+                <td>
+                    <button type="button" class="delete-website-button"
+                        data-website-id="${Number(website.id)}">Delete</button>
+                </td>
+            </tr>
+        `).join("");
+    } catch (error) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Unable to load registered websites.</td></tr>';
+        console.error("Website loading failed:", error);
+    }
+}
+
+document.getElementById("addWebsiteForm").addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const message = document.getElementById("websiteFormMessage");
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    button.disabled = true;
+    message.textContent = "Registering website...";
+
+    try {
+        await fetchJSON("/websites", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name: document.getElementById("websiteName").value.trim(),
+                url: document.getElementById("websiteUrl").value.trim(),
+                ownership_confirmed: document.getElementById("websiteOwnership").checked
+            })
+        });
+
+        message.textContent = "Website registered. Monitoring status is Pending until it becomes reachable.";
+        message.style.color = "#21865b";
+        event.currentTarget.reset();
+        await loadRegisteredWebsites();
+    } catch (error) {
+        message.textContent = error.message;
+        message.style.color = "#c0392b";
+    } finally {
+        button.disabled = false;
+    }
+});
+
+document.getElementById("registeredWebsitesTable").addEventListener("click", async event => {
+    const button = event.target.closest(".delete-website-button");
+    if (!button) return;
+
+    const websiteId = button.dataset.websiteId;
+    if (!confirm("Delete this registered website and its monitoring configuration?")) return;
+
+    button.disabled = true;
+
+    try {
+        await fetchJSON(`/websites/${encodeURIComponent(websiteId)}`, {
+            method: "DELETE"
+        });
+        await loadRegisteredWebsites();
+    } catch (error) {
+        alert("Could not delete website: " + error.message);
+        button.disabled = false;
+    }
 });

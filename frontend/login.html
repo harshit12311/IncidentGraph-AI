@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IncidentGraph AI | Login</title>
+    <link rel="stylesheet" href="/frontend/assets/style.css">
+    <style>
+        .auth-wrapper {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: #f4f6fb;
+        }
+        .auth-card {
+            width: 100%;
+            max-width: 440px;
+            padding: 36px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(25, 35, 70, .10);
+        }
+        .auth-brand { text-align: center; margin-bottom: 28px; }
+        .auth-brand h1 { margin: 0 0 8px; font-size: 27px; }
+        .auth-brand p { color: #68738a; margin: 0; }
+        .auth-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+        .auth-tabs button {
+            flex: 1; padding: 11px; border: 1px solid #dce1eb;
+            border-radius: 8px; background: #f7f8fc; cursor: pointer;
+        }
+        .auth-tabs button.active { background: #263fba; color: white; }
+        .auth-form label { display: block; margin: 15px 0 7px; font-weight: 600; }
+        .auth-form input {
+            width: 100%; box-sizing: border-box; padding: 12px;
+            border: 1px solid #dce1eb; border-radius: 8px; font: inherit;
+        }
+        .auth-submit {
+            width: 100%; margin-top: 24px; padding: 13px;
+            border: 0; border-radius: 8px; background: #263fba;
+            color: white; font-weight: 600; cursor: pointer;
+        }
+        .auth-message { margin-top: 16px; color: #c0392b; text-align: center; }
+        .auth-note { margin-top: 20px; color: #68738a; font-size: 13px; text-align: center; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <main class="auth-wrapper">
+        <section class="auth-card">
+            <div class="auth-brand">
+                <h1>IncidentGraph AI</h1>
+                <p>Intelligent Incident Monitoring & Root Cause Analysis</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button id="loginTab" class="active" type="button">Login</button>
+                <button id="registerTab" type="button">Register</button>
+            </div>
+
+            <form id="loginForm" class="auth-form">
+                <label for="loginEmail">Email address</label>
+                <input id="loginEmail" type="email" autocomplete="email" required>
+                <label for="loginPassword">Password</label>
+                <input id="loginPassword" type="password" autocomplete="current-password" required>
+                <button class="auth-submit" type="submit">Login</button>
+            </form>
+
+            <form id="registerForm" class="auth-form" hidden>
+                <label for="registerEmail">Email address</label>
+                <input id="registerEmail" type="email" autocomplete="email" required>
+                <label for="registerPassword">Password</label>
+                <input id="registerPassword" type="password" minlength="12" autocomplete="new-password" required>
+                <label for="confirmPassword">Confirm password</label>
+                <input id="confirmPassword" type="password" minlength="12" autocomplete="new-password" required>
+                <label>
+                    <input id="ownershipNotice" type="checkbox" required style="width:auto">
+                    I will only monitor websites that I own or am authorized to monitor.
+                </label>
+                <button class="auth-submit" type="submit">Create account</button>
+            </form>
+
+            <p id="authMessage" class="auth-message" role="alert"></p>
+            <p class="auth-note">New accounts receive standard user access. Administrator access is managed separately.</p>
+        </section>
+    </main>
+
+    <script src="/frontend/assets/auth.js"></script>
+</body>
+</html>

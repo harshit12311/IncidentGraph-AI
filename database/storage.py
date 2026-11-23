@@ -531,3 +531,267 @@ def get_latest_application_health():
             ORDER BY application_name
         """).fetchall()
         return [dict(row) for row in rows]
+
+
+# User-scoped queries for the multi-user platform.
+def get_user_recent_incidents(user_id, limit=20):
+    with get_connection() as connection:
+        rows = connection.execute("""
+            SELECT *
+            FROM incidents
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (user_id, limit)).fetchall()
+
+        return [dict(row) for row in rows]
+
+
+def get_user_incident_by_id(user_id, incident_id):
+    with get_connection() as connection:
+        row = connection.execute("""
+            SELECT *
+            FROM incidents
+            WHERE user_id = ? AND incident_id = ?
+        """, (user_id, incident_id)).fetchone()
+
+        if row is None:
+            return None
+
+        incident = dict(row)
+
+        if incident.get("root_cause_probabilities"):
+            try:
+                incident["root_cause_probabilities"] = json.loads(
+                    incident["root_cause_probabilities"]
+                )
+            except (json.JSONDecodeError, TypeError):
+                incident["root_cause_probabilities"] = {}
+
+        return incident
+
+
+def get_user_incident_summary(user_id):
+    with get_connection() as connection:
+        total = connection.execute("""
+            SELECT COUNT(*) FROM incidents WHERE user_id = ?
+        """, (user_id,)).fetchone()[0]
+
+        queries = {
+            "by_application": """
+                SELECT application_name, COUNT(*) AS incident_count
+                FROM incidents WHERE user_id = ?
+                GROUP BY application_name ORDER BY incident_count DESC
+            """,
+            "by_health_status": """
+                SELECT health_status, COUNT(*) AS incident_count
+                FROM incidents WHERE user_id = ?
+                GROUP BY health_status
+            """,
+            "by_status": """
+                SELECT status, COUNT(*) AS incident_count
+                FROM incidents WHERE user_id = ?
+                GROUP BY status
+            """,
+            "by_severity": """
+                SELECT severity, COUNT(*) AS incident_count
+                FROM incidents
+                WHERE user_id = ? AND severity IS NOT NULL
+                GROUP BY severity
+            """,
+        }
+
+        result = {"total_incidents": total}
+
+        for key, query in queries.items():
+            rows = connection.execute(query, (user_id,)).fetchall()
+            result[key] = [dict(row) for row in rows]
+
+        return result
+
+
+def get_user_recent_website_checks(user_id, limit=50):
+    with get_connection() as connection:
+        rows = connection.execute("""
+            SELECT *
+            FROM website_checks
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (user_id, limit)).fetchall()
+
+        return [dict(row) for row in rows]
+
+
+def get_user_website_check_summary(user_id):
+    with get_connection() as connection:
+        row = connection.execute("""
+            SELECT
+                COUNT(*) AS total_checks,
+                COALESCE(SUM(available), 0) AS successful_checks,
+                COALESCE(AVG(response_time_ms), 0) AS average_response_time_ms
+            FROM website_checks
+            WHERE user_id = ?
+        """, (user_id,)).fetchone()
+
+        total = row["total_checks"]
+        successful = row["successful_checks"]
+
+        return {
+            "total_checks": total,
+            "successful_checks": successful,
+            "failed_checks": total - successful,
+            "availability_percent": (
+                round(successful * 100 / total, 2) if total else None
+            ),
+            "average_response_time_ms": round(
+                row["average_response_time_ms"], 2
+            ),
+        }
+
+
+# Multi-tenant website monitoring storage.
+def record_user_website_check(
+    user_id, website_id, website_name, url,
+    status_code, response_time_ms, available, error_message=None
+):
+    """Store a website check for its verified owner."""
+    with get_connection() as connection:
+        website = connection.execute("""
+            SELECT id FROM monitored_websites
+            WHERE id = ? AND user_id = ?
+        """, (website_id, user_id)).fetchone()
+
+        if website is None:
+            raise ValueError("Website does not belong to this user.")
+
+        connection.execute("""
+            INSERT INTO website_checks (
+                website_name, url, checked_at, status_code,
+                response_time_ms, available, error_message,
+                user_id, website_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            website_name, url, datetime.now().isoformat(),
+            status_code, response_time_ms,
+            1 if available else 0, error_message,
+            user_id, website_id
+        ))
+
+
+def save_user_website_incident(
+    user_id, website_id, website_name, url,
+    status_code, response_time_ms, error_message=None
+):
+    """Create or update an open incident for one user's website."""
+    now = datetime.now().isoformat()
+    application_name = f"Website: {website_name}"
+    reason = error_message or f"Website returned HTTP {status_code}"
+
+    with get_connection() as connection:
+        website = connection.execute("""
+            SELECT id FROM monitored_websites
+            WHERE id = ? AND user_id = ?
+        """, (website_id, user_id)).fetchone()
+
+        if website is None:
+            raise ValueError("Website does not belong to this user.")
+
+        existing = connection.execute("""
+            SELECT incident_id FROM incidents
+            WHERE user_id = ? AND website_id = ?
+              AND status = 'open'
+            ORDER BY id DESC LIMIT 1
+        """, (user_id, website_id)).fetchone()
+
+        if existing:
+            connection.execute("""
+                UPDATE incidents
+                SET last_seen_at = ?, reasons = ?,
+                    health_status = 'unhealthy',
+                    website_status_code = ?,
+                    website_response_time_ms = ?,
+                    website_url = ?
+                WHERE incident_id = ?
+                  AND user_id = ? AND website_id = ?
+            """, (
+                now, reason, status_code, response_time_ms,
+                url, existing["incident_id"], user_id, website_id
+            ))
+            return existing["incident_id"]
+
+        incident_id = (
+            f"INC-{datetime.now().strftime('%Y%m%d%H%M%S')}-"
+            f"{uuid.uuid4().hex[:8]}"
+        )
+
+        connection.execute("""
+            INSERT INTO incidents (
+                incident_id, timestamp, application_name, detected,
+                reasons, cpu_percent, memory_percent, disk_percent,
+                health_status, status, last_seen_at, severity,
+                predicted_root_cause, confidence_percent,
+                website_status_code, website_response_time_ms,
+                website_url, user_id, website_id
+            )
+            VALUES (?, ?, ?, 1, ?, NULL, NULL, NULL,
+                    'unhealthy', 'open', ?, 'High',
+                    'website_unavailable', NULL, ?, ?, ?, ?, ?)
+        """, (
+            incident_id, now, application_name, reason, now,
+            status_code, response_time_ms, url, user_id, website_id
+        ))
+
+        return incident_id
+
+
+def resolve_user_website_incidents(user_id, website_id):
+    """Resolve open incidents for one user's website only."""
+    now = datetime.now().isoformat()
+
+    with get_connection() as connection:
+        cursor = connection.execute("""
+            UPDATE incidents
+            SET status = 'resolved', resolved_at = ?
+            WHERE user_id = ? AND website_id = ?
+              AND status = 'open'
+        """, (now, user_id, website_id))
+
+        return cursor.rowcount
+
+
+def get_active_user_websites():
+    """Retrieve enabled websites approved for active monitoring."""
+    with get_connection() as connection:
+        rows = connection.execute("""
+            SELECT
+                id AS website_id,
+                user_id,
+                name,
+                url,
+                monitoring_status,
+                200 AS expected_status_code,
+                10 AS timeout_seconds
+            FROM monitored_websites
+            WHERE enabled = 1
+              AND monitoring_status IN ('pending', 'active')
+            ORDER BY id
+        """).fetchall()
+
+        return [dict(row) for row in rows]
+
+
+def update_user_website_status(user_id, website_id, status):
+    """Update monitoring status for a website owned by the specified user."""
+    if status not in ("pending", "active", "disabled"):
+        raise ValueError("Invalid website monitoring status.")
+
+    with get_connection() as connection:
+        cursor = connection.execute("""
+            UPDATE monitored_websites
+            SET monitoring_status = ?
+            WHERE id = ? AND user_id = ?
+        """, (status, website_id, user_id))
+
+        return cursor.rowcount
