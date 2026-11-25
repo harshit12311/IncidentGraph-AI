@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IncidentGraph AI | Incident Monitoring</title>
-    <link rel="stylesheet" href="/frontend/assets/style.css">
+    <link rel="stylesheet" href="/frontend/assets/style.css?v=3">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -40,10 +40,30 @@
                     <p class="subtitle">Monitor application health and investigate incidents.</p>
                 </div>
                 <div class="topbar-right">
-                    <span id="accountInfo">Loading account...</span>
                     <span class="live-indicator">● Live Dashboard</span>
                     <button id="refreshButton">↻ Refresh</button>
-                    <button id="logoutButton" type="button">Logout</button>
+
+                    <div class="account-menu" id="accountMenu">
+                        <button class="account-trigger" id="accountMenuButton"
+                                type="button" aria-expanded="false"
+                                aria-controls="accountDropdown">
+                            <span class="account-avatar" id="accountAvatar">U</span>
+                            <span id="accountInfo">Loading account...</span>
+                            <span aria-hidden="true">▾</span>
+                        </button>
+
+                        <div class="account-dropdown" id="accountDropdown" hidden>
+                            <strong id="accountDisplayName">Account</strong>
+                            <span id="accountRole">Role</span>
+                            <span id="accountEmail">Email</span>
+                            <hr>
+                            <button id="logoutButton" type="button">Logout</button>
+                            <button id="deleteAccountButton" type="button"
+                                    class="delete-account-button" hidden>
+                                Delete Account
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -279,8 +299,8 @@
                         <input id="websiteUrl" name="url" type="url" required placeholder="https://example.com">
 
                         <label>
-                            <input id="websiteOwnership" type="checkbox" required>
-                            I own this website or have permission to monitor it.
+                            <input id="websiteResponsibleUse" type="checkbox" required>
+                            I confirm this website is publicly accessible and I will monitor it responsibly, respecting applicable terms and usage restrictions.
                         </label>
 
                         <button type="submit">Add Website</button>
@@ -368,6 +388,6 @@
         </main>
     </div>
 
-    <script src="/frontend/assets/dashboard.js?v=6"></script>
+    <script src="/frontend/assets/dashboard.js?v=9"></script>
 </body>
 </html>

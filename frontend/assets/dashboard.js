@@ -14,9 +14,23 @@ async function initializeDashboard() {
         const data = await response.json();
         currentUser = data.user;
 
+        const emailName = currentUser.email
+            .split("@")[0]
+            .replace(/[._-]+/g, " ")
+            .replace(/\b\w/g, character => character.toUpperCase());
+
+        const displayName = emailName || "User";
         const accountInfo = document.getElementById("accountInfo");
-        if (accountInfo) {
-            accountInfo.textContent = `${currentUser.email} (${currentUser.role})`;
+        if (accountInfo) accountInfo.textContent = displayName;
+
+        setText("accountAvatar", displayName.charAt(0).toUpperCase());
+        setText("accountDisplayName", displayName);
+        setText("accountRole", currentUser.role === "admin" ? "Administrator" : "Standard User");
+        setText("accountEmail", currentUser.email);
+
+        const deleteAccountButton = document.getElementById("deleteAccountButton");
+        if (deleteAccountButton) {
+            deleteAccountButton.hidden = currentUser.role === "admin";
         }
 
         const adminOnlyElements = document.querySelectorAll(".admin-only");
@@ -25,6 +39,7 @@ async function initializeDashboard() {
         });
 
         await loadDashboard();
+        await loadRegisteredWebsites();
 
         if (currentUser.role === "admin") {
             await loadDependencyGraph();
@@ -305,6 +320,23 @@ async function loadDashboard() {
 
 document.getElementById("refreshButton").addEventListener("click", loadDashboard);
 
+const accountMenuButton = document.getElementById("accountMenuButton");
+const accountDropdown = document.getElementById("accountDropdown");
+
+accountMenuButton.addEventListener("click", () => {
+    const isOpening = accountDropdown.hidden;
+    accountDropdown.hidden = !isOpening;
+    accountMenuButton.setAttribute("aria-expanded", String(isOpening));
+});
+
+document.addEventListener("click", event => {
+    const accountMenu = document.getElementById("accountMenu");
+    if (accountMenu && !accountMenu.contains(event.target)) {
+        accountDropdown.hidden = true;
+        accountMenuButton.setAttribute("aria-expanded", "false");
+    }
+});
+
 document.getElementById("logoutButton").addEventListener("click", async () => {
     try {
         await fetch("/auth/logout", {
@@ -313,6 +345,39 @@ document.getElementById("logoutButton").addEventListener("click", async () => {
         });
     } finally {
         window.location.replace("/frontend/login.html");
+    }
+});
+
+document.getElementById("deleteAccountButton").addEventListener("click", async () => {
+    const confirmed = window.confirm(
+        "Deactivate your account? Your websites will stop monitoring and you will be logged out. Historical incident records will be preserved."
+    );
+    if (!confirmed) return;
+
+    const password = window.prompt("Enter your current password to confirm account deactivation:");
+    if (password === null) return;
+    if (!password) {
+        window.alert("Password is required.");
+        return;
+    }
+
+    try {
+        const response = await fetch("/auth/deactivate-account", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password })
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || "Account deactivation failed.");
+        }
+
+        window.alert("Your account has been deactivated.");
+        window.location.replace("/frontend/login.html");
+    } catch (error) {
+        window.alert(error.message);
     }
 });
 
@@ -795,6 +860,7 @@ async function loadRegisteredWebsites() {
 
 document.getElementById("addWebsiteForm").addEventListener("submit", async event => {
     event.preventDefault();
+    const form = event.currentTarget;
 
     const message = document.getElementById("websiteFormMessage");
     const button = event.currentTarget.querySelector('button[type="submit"]');
@@ -808,13 +874,13 @@ document.getElementById("addWebsiteForm").addEventListener("submit", async event
             body: JSON.stringify({
                 name: document.getElementById("websiteName").value.trim(),
                 url: document.getElementById("websiteUrl").value.trim(),
-                ownership_confirmed: document.getElementById("websiteOwnership").checked
+                responsible_use_confirmed: document.getElementById("websiteResponsibleUse").checked
             })
         });
 
         message.textContent = "Website registered. Monitoring status is Pending until it becomes reachable.";
         message.style.color = "#21865b";
-        event.currentTarget.reset();
+        form.reset();
         await loadRegisteredWebsites();
     } catch (error) {
         message.textContent = error.message;

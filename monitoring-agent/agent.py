@@ -182,11 +182,12 @@ def analyze_logs(log_lines):
 
 
 def monitor_external_website(website):
-    """Check an external website and store its availability history."""
+    """Securely check a platform-managed public website."""
     name = website["name"]
     url = website["url"]
     expected_status = website.get("expected_status_code", 200)
     timeout = website.get("timeout_seconds", 10)
+    slow_threshold = website.get("slow_response_threshold_ms", 2000)
 
     start_time = time.perf_counter()
     status_code = None
@@ -194,8 +195,7 @@ def monitor_external_website(website):
     available = False
 
     try:
-        response = requests.get(url, timeout=timeout)
-        status_code = response.status_code
+        status_code = safe_get(url, timeout=timeout)
         available = status_code == expected_status
 
         if not available:
@@ -204,13 +204,20 @@ def monitor_external_website(website):
                 f"expected {expected_status}"
             )
 
-    except requests.RequestException as error:
+    except Exception as error:
         error_message = f"{type(error).__name__}: {error}"
 
     response_time_ms = round(
         (time.perf_counter() - start_time) * 1000,
         2,
     )
+
+    if available and response_time_ms > slow_threshold:
+        available = False
+        error_message = (
+            f"Slow response: {response_time_ms} ms; "
+            f"threshold {slow_threshold} ms"
+        )
 
     record_website_check(
         website_name=name,
@@ -245,6 +252,7 @@ def monitor_external_website(website):
 
     if error_message:
         print(f"Details      : {error_message}")
+
 
 def monitor_application(application, metrics):
     application_name = application["name"]

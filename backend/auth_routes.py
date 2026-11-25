@@ -17,6 +17,7 @@ from database.auth_storage import (
     create_session,
     get_session_user,
     delete_session,
+    deactivate_user,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -33,6 +34,10 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: str
+    password: str
+
+
+class DeactivateAccountRequest(BaseModel):
     password: str
 
 
@@ -92,6 +97,13 @@ def register(data: RegisterRequest, response: Response):
 @router.post("/login")
 def login(data: LoginRequest, response: Response):
     email = validate_email(data.email)
+
+    if not isinstance(data.password, str) or not 1 <= len(data.password) <= 128:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password.",
+        )
+
     user = get_user_by_email(email)
 
     if (
@@ -149,3 +161,53 @@ def current_user(request: Request):
         raise HTTPException(status_code=401, detail="Session expired or invalid.")
 
     return {"user": user}
+
+
+@router.post("/deactivate-account")
+def deactivate_account(
+    data: DeactivateAccountRequest,
+    request: Request,
+    response: Response,
+):
+    token = request.cookies.get(COOKIE_NAME)
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    user = get_session_user(hash_session_token(token))
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Session expired or invalid.")
+
+    if user["role"] == "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Administrator accounts cannot be deactivated here.",
+        )
+
+    account = get_user_by_email(user["email"])
+
+    if (
+        not account
+        or not isinstance(data.password, str)
+        or not verify_password(data.password, account["password_hash"])
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Current password is incorrect.",
+        )
+
+    try:
+        deactivate_user(user["id"])
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+
+    response.delete_cookie(
+        key=COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+    )
+
+    return {"message": "Account deactivated successfully."}

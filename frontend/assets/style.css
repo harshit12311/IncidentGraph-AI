@@ -702,3 +702,539 @@ a {
     display: none !important;
 }
 
+
+/* =========================================================
+   IncidentGraph AI — Light Cyber Dashboard UI
+   Visual overrides only: existing functionality is preserved.
+   ========================================================= */
+
+:root {
+    --bg: #f3f6fc;
+    --surface: #ffffff;
+    --text: #17243b;
+    --muted: #71809a;
+    --border: #e3eaf4;
+    --primary: #4263eb;
+    --sidebar: #101b31;
+}
+
+body {
+    background:
+        radial-gradient(ellipse at 85% 0%, rgba(66, 99, 235, .055), transparent 34%),
+        var(--bg);
+    color: var(--text);
+}
+
+.sidebar {
+    background: linear-gradient(180deg, #101b31 0%, #142440 100%);
+    border-right: 1px solid rgba(255,255,255,.06);
+    box-shadow: 5px 0 24px rgba(18, 35, 65, .06);
+}
+
+.brand {
+    padding-bottom: 38px;
+}
+
+.brand-icon {
+    box-shadow: 0 5px 18px rgba(100, 123, 255, .28);
+}
+
+.nav-link {
+    border: 1px solid transparent;
+    transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.nav-link:hover {
+    background: rgba(255,255,255,.07);
+    color: #fff;
+}
+
+.nav-link.active {
+    background: linear-gradient(100deg, rgba(83,109,254,.24), rgba(139,92,246,.12));
+    border-color: rgba(129,148,255,.2);
+    color: #fff;
+    box-shadow: inset 3px 0 #7890ff;
+}
+
+.main-content {
+    padding-top: 38px;
+}
+
+.topbar {
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border);
+}
+
+h1 {
+    color: #14213a;
+    font-size: clamp(25px, 3vw, 31px);
+    font-weight: 750;
+}
+
+.eyebrow {
+    letter-spacing: 1.8px;
+}
+
+.subtitle {
+    line-height: 1.6;
+}
+
+.topbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+#accountInfo {
+    color: #53627b;
+    font-size: 12px;
+    font-weight: 600;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 12px;
+}
+
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+button {
+    background: linear-gradient(135deg, #4263eb, #5b6ff5);
+    box-shadow: 0 3px 9px rgba(66, 99, 235, .16);
+    transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+button:hover {
+    background: linear-gradient(135deg, #3454d1, #4c60e5);
+    box-shadow: 0 5px 14px rgba(66, 99, 235, .22);
+    transform: translateY(-1px);
+}
+
+button:focus-visible,
+input:focus-visible {
+    outline: 3px solid rgba(66, 99, 235, .2);
+    outline-offset: 2px;
+}
+
+.section-heading {
+    margin-top: 24px;
+}
+
+.section-heading h2 {
+    color: #1b2a44;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+.section-heading > span {
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-grid {
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    position: relative;
+    overflow: hidden;
+    padding: 21px;
+    border-radius: 13px;
+    box-shadow: 0 4px 16px rgba(26, 48, 86, .035);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, #4263eb, #8b5cf6);
+    opacity: .8;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 9px 22px rgba(26, 48, 86, .075);
+}
+
+.stat-label {
+    color: #687893;
+    font-weight: 600;
+}
+
+.stat-card strong {
+    color: #172943;
+    font-size: 30px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-note {
+    color: #8491a6;
+}
+
+.panel {
+    border: 1px solid #e4eaf3;
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 4px 18px rgba(26, 48, 86, .035);
+}
+
+.panel-heading {
+    gap: 14px;
+}
+
+.panel-heading h3,
+.panel > h3 {
+    color: #1b2a44;
+    font-size: 15px;
+    font-weight: 750;
+}
+
+.panel-heading p,
+.muted {
+    color: #7b89a0;
+    line-height: 1.6;
+}
+
+.chart-container {
+    min-height: 220px;
+}
+
+.table-panel {
+    overflow: hidden;
+}
+
+.table-wrap,
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+table {
+    font-size: 12px;
+}
+
+th {
+    background: #f5f7fc;
+    color: #65748d;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .45px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+}
+
+td {
+    color: #35445d;
+    font-size: 12px;
+    border-bottom: 1px solid #edf1f7;
+}
+
+tbody tr {
+    transition: background .15s ease;
+}
+
+tbody tr:hover {
+    background: #f7f9ff;
+}
+
+.pill {
+    border: 1px solid transparent;
+    letter-spacing: .2px;
+}
+
+.pill.open,
+.pill.unhealthy,
+.pill.failed {
+    background: #fff0ef;
+    border-color: #ffdedb;
+    color: #c7463e;
+}
+
+.pill.resolved,
+.pill.healthy,
+.pill.available {
+    background: #e9f8f1;
+    border-color: #d1f0e1;
+    color: #137b57;
+}
+
+.website-registration {
+    background: #f9fbff;
+    border-color: #e0e9f8;
+}
+
+form label {
+    display: block;
+    margin: 13px 0 7px;
+    color: #43536d;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+form input:not([type="checkbox"]),
+form select,
+form textarea {
+    display: block;
+    width: 100%;
+    min-height: 41px;
+    padding: 10px 12px;
+    color: #24344e;
+    background: #fff;
+    border: 1px solid #dce4f0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+form input:not([type="checkbox"]):focus,
+form select:focus,
+form textarea:focus {
+    outline: none;
+    border-color: #7890f5;
+    box-shadow: 0 0 0 3px rgba(66, 99, 235, .1);
+}
+
+form input[type="checkbox"] {
+    accent-color: #4263eb;
+    margin-right: 7px;
+}
+
+form label:has(input[type="checkbox"]) {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    line-height: 1.6;
+    font-weight: 500;
+}
+
+form button {
+    margin-top: 12px;
+}
+
+#websiteFormMessage,
+#aiInvestigationStatus {
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.website-summary {
+    gap: 13px;
+}
+
+.website-summary div {
+    background: #f6f8fd;
+    border: 1px solid #e8edf6;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.website-summary strong {
+    color: #203452;
+    font-size: 19px;
+    font-variant-numeric: tabular-nums;
+}
+
+.timeline-event {
+    background: #f6f8fd;
+    border: 1px solid #e8edf6;
+    border-left: 3px solid #647bff;
+    padding: 14px 16px;
+}
+
+.dependency-graph-container {
+    background:
+        radial-gradient(circle, rgba(100,123,255,.09) 1px, transparent 1px),
+        #f8faff;
+    background-size: 18px 18px;
+    border-color: #e2e9f5;
+}
+
+#aiInvestigationResult {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+#aiInvestigationResult h4 {
+    color: #30466a;
+    font-size: 13px;
+    margin: 18px 0 7px;
+}
+
+#aiInvestigationResult p,
+#incidentRecommendations {
+    color: #53627b;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+footer {
+    padding-top: 28px;
+    color: #8793a7;
+    letter-spacing: .2px;
+}
+
+@media (max-width: 760px) {
+    .main-content {
+        padding: 22px 15px;
+    }
+
+    .topbar-right {
+        justify-content: flex-start;
+        gap: 9px;
+    }
+
+    #accountInfo {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    .panel {
+        padding: 16px;
+    }
+
+    .panel-heading {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .stats-grid {
+        gap: 10px;
+    }
+}
+
+@media (max-width: 420px) {
+    .stat-card {
+        padding: 14px 12px;
+    }
+
+    .stat-card strong {
+        font-size: 22px;
+    }
+
+    .stat-label {
+        font-size: 11px;
+    }
+
+    .topbar-right button {
+        padding: 9px 11px;
+    }
+}
+
+/* Account dropdown */
+.account-menu {
+    position: relative;
+    z-index: 100;
+}
+
+.account-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 11px 7px 7px;
+    color: #17243b;
+    background: #ffffff;
+    border: 1px solid #e3eaf4;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(25, 45, 80, .06);
+}
+
+.account-trigger:hover {
+    color: #17243b;
+    background: #f5f8ff;
+    transform: none;
+}
+
+.account-avatar {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #e8edff;
+    color: #3454d1;
+    font-weight: 800;
+    font-size: 15px;
+}
+
+#accountInfo {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #17243b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.account-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 245px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #e3eaf4;
+    border-radius: 13px;
+    box-shadow: 0 14px 35px rgba(25, 45, 80, .16);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.account-dropdown[hidden] {
+    display: none !important;
+}
+
+.account-dropdown strong {
+    color: #17243b;
+    font-size: 14px;
+}
+
+.account-dropdown span {
+    color: #71809a;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.account-dropdown hr {
+    width: 100%;
+    border: 0;
+    border-top: 1px solid #e8edf5;
+    margin: 4px 0;
+}
+
+.account-dropdown button {
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+}
+
+.account-dropdown .delete-account-button {
+    color: #b42318;
+    background: #fff1f0;
+    box-shadow: none;
+}
+
+.account-dropdown .delete-account-button:hover {
+    color: #912018;
+    background: #ffe3e0;
+    transform: none;
+}
+
+@media (max-width: 760px) {
+    .account-dropdown {
+        right: auto;
+        left: 0;
+        width: min(245px, calc(100vw - 45px));
+    }
+}

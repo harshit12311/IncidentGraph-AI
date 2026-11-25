@@ -12,6 +12,8 @@ SCRYPT_KEY_LENGTH = 64
 def hash_password(password: str) -> str:
     if not isinstance(password, str) or len(password) < 12:
         raise ValueError("Password must contain at least 12 characters.")
+    if len(password) > 128:
+        raise ValueError("Password cannot exceed 128 characters.")
 
     salt = secrets.token_bytes(16)
     password_hash = hashlib.scrypt(

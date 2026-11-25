@@ -29,6 +29,20 @@
             "url": "https://api.uptimesignal.io/test/random",
             "expected_status_code": 200,
             "timeout_seconds": 10
+        },
+        {
+            "name": "HTTP Failure Demo",
+            "url": "https://httpbin.org/status/503",
+            "expected_status_code": 200,
+            "timeout_seconds": 10,
+            "slow_response_threshold_ms": 2000
+        },
+        {
+            "name": "Slow Response Demo",
+            "url": "https://httpbin.org/delay/3",
+            "expected_status_code": 200,
+            "timeout_seconds": 10,
+            "slow_response_threshold_ms": 1000
         }
     ]
 }

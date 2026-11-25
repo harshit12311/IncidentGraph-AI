@@ -17,7 +17,7 @@ router = APIRouter(prefix="/websites", tags=["User Websites"])
 class WebsiteRegistration(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     url: str = Field(min_length=8, max_length=2048)
-    ownership_confirmed: bool
+    responsible_use_confirmed: bool
 
 
 def validate_website_url(url):
@@ -72,10 +72,10 @@ def register_website(
     data: WebsiteRegistration,
     user=Depends(require_active_user),
 ):
-    if not data.ownership_confirmed:
+    if not data.responsible_use_confirmed:
         raise HTTPException(
             status_code=400,
-            detail="You must confirm that you own or are authorized to monitor this website.",
+            detail="Confirm that this is publicly accessible and that you will monitor it responsibly, respecting applicable terms and usage restrictions.",
         )
 
     url = validate_website_url(data.url)

@@ -92,3 +92,37 @@ def delete_expired_sessions():
         """, (now,))
 
         return cursor.rowcount
+
+
+def deactivate_user(user_id):
+    """Deactivate an account while preserving its monitoring history."""
+    with get_connection() as connection:
+        user = connection.execute(
+            "SELECT id, role FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+
+        if user is None:
+            return False
+
+        if user["role"] == "admin":
+            raise ValueError("Administrator accounts cannot be deactivated here.")
+
+        connection.execute(
+            "UPDATE users SET is_active = 0 WHERE id = ?",
+            (user_id,),
+        )
+        connection.execute(
+            """
+            UPDATE monitored_websites
+            SET enabled = 0, monitoring_status = 'disabled'
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        connection.execute(
+            "DELETE FROM sessions WHERE user_id = ?",
+            (user_id,),
+        )
+
+    return True

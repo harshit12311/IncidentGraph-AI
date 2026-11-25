@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IncidentGraph AI | Login</title>
-    <link rel="stylesheet" href="/frontend/assets/style.css">
+    <link rel="stylesheet" href="/frontend/assets/style.css?v=3">
     <style>
         .auth-wrapper {
             min-height: 100vh;
@@ -43,14 +43,153 @@
         .auth-message { margin-top: 16px; color: #c0392b; text-align: center; }
         .auth-note { margin-top: 20px; color: #68738a; font-size: 13px; text-align: center; }
         [hidden] { display: none !important; }
+
+        /* IncidentGraph AI - Professional Authentication UI */
+        body {
+            margin: 0;
+            color: #17243b;
+            background: #f3f6fc;
+            color-scheme: light;
+        }
+
+        .auth-wrapper {
+            background:
+                radial-gradient(circle at 15% 15%, #e6edff 0, transparent 35%),
+                radial-gradient(circle at 85% 85%, #e8f5ff 0, transparent 35%),
+                #f3f6fc;
+        }
+
+        .auth-card {
+            max-width: 430px;
+            padding: 40px;
+            border: 1px solid #e3eaf4;
+            border-radius: 18px;
+            box-shadow: 0 18px 55px rgba(31, 52, 91, .10);
+        }
+
+        .auth-brand h1 {
+            color: #17243b;
+            font-size: 29px;
+            font-weight: 800;
+            letter-spacing: -.7px;
+        }
+
+        .auth-brand p {
+            color: #64738c;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .auth-tabs button {
+            color: #53627b;
+            background: #f3f6fc;
+            border: 1px solid #dce4f0;
+            font-weight: 700;
+            transition: .2s ease;
+        }
+
+        .auth-tabs button.active {
+            color: #ffffff;
+            background: linear-gradient(135deg, #3454d1, #5b6ff5);
+            border-color: #4263eb;
+            box-shadow: 0 4px 12px rgba(66, 99, 235, .2);
+        }
+
+        .auth-form label {
+            color: #263650;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .auth-form input:not([type="checkbox"]) {
+            min-height: 45px;
+            color: #17243b;
+            background: #ffffff;
+            border: 1px solid #cbd6e5;
+            border-radius: 9px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .auth-form input::placeholder {
+            color: #8995a8;
+        }
+
+        .auth-form input:focus {
+            border-color: #4263eb;
+            box-shadow: 0 0 0 3px rgba(66, 99, 235, .12);
+        }
+
+        .auth-form input[type="checkbox"] {
+            accent-color: #4263eb;
+        }
+
+        .auth-submit {
+            min-height: 46px;
+            background: linear-gradient(135deg, #3454d1, #5b6ff5);
+            font-size: 14px;
+            box-shadow: 0 5px 14px rgba(66, 99, 235, .18);
+        }
+
+        .auth-submit:hover {
+            background: linear-gradient(135deg, #2948bd, #4c60e5);
+        }
+
+        .auth-message {
+            color: #b42318;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .auth-note {
+            color: #71809a;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 520px) {
+            .auth-wrapper {
+                padding: 16px;
+            }
+
+            .auth-card {
+                padding: 28px 22px;
+            }
+        }
+
+
+        .auth-logo {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 16px;
+            display: grid;
+            place-items: center;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #3454d1, #647bff);
+            color: #ffffff;
+            font-size: 21px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            box-shadow: 0 7px 18px rgba(66, 99, 235, .24);
+        }
+
+        .auth-brand .auth-security {
+            margin-top: 10px;
+            color: #71809a;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
     </style>
 </head>
 <body>
     <main class="auth-wrapper">
         <section class="auth-card">
             <div class="auth-brand">
+                <div class="auth-logo" aria-label="IncidentGraph AI logo">IG</div>
                 <h1>IncidentGraph AI</h1>
                 <p>Intelligent Incident Monitoring & Root Cause Analysis</p>
+                <p class="auth-security">Secure access to your monitoring workspace.</p>
             </div>
 
             <div class="auth-tabs">
@@ -58,15 +197,15 @@
                 <button id="registerTab" type="button">Register</button>
             </div>
 
-            <form id="loginForm" class="auth-form">
+            <form id="loginForm" class="auth-form" autocomplete="off">
                 <label for="loginEmail">Email address</label>
-                <input id="loginEmail" type="email" autocomplete="email" required>
+                <input id="loginEmail" type="email" autocomplete="off" placeholder="Enter your email" required>
                 <label for="loginPassword">Password</label>
-                <input id="loginPassword" type="password" autocomplete="current-password" required>
+                <input id="loginPassword" type="password" autocomplete="new-password" placeholder="Enter your password" required>
                 <button class="auth-submit" type="submit">Login</button>
             </form>
 
-            <form id="registerForm" class="auth-form" hidden>
+            <form id="registerForm" class="auth-form" autocomplete="off" hidden>
                 <label for="registerEmail">Email address</label>
                 <input id="registerEmail" type="email" autocomplete="email" required>
                 <label for="registerPassword">Password</label>
